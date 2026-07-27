@@ -20,7 +20,7 @@ import {
 const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 const fator = (v: number | null) => v === null ? 'Sem dados' : v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const calcFatorLocacao = (custoAquisicao: number, receita: number) => custoAquisicao > 0 && receita > 0 ? custoAquisicao / receita : null;
+const calcFatorLocacao = (custoAquisicao: number, receita: number) => custoAquisicao > 0 && receita > 0 ? receita / custoAquisicao : null;
 
 const statusBadge = (s: EquipamentoStatus) => ({
   'Ativo': 'bg-green-100 text-green-700',
@@ -379,7 +379,7 @@ function EquipamentoDetalhe({ equipamento, manutencoes, locacoes, onBack, onEdit
       <div className="-mt-3 space-y-1">
         {periodo !== 'tudo' && <p className="text-[11px] text-zinc-400">* Custo de aquisição é total (não filtrado por período).</p>}
         <p className="text-[11px] text-zinc-400">
-          Fator de locação = valor de aquisição dividido pela receita de locação do ano ou mês atual.
+          Fator de locação = receita de locação dividida pelo valor de aquisição, considerando o ano ou mês atual.
         </p>
       </div>
 
