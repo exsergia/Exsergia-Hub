@@ -586,7 +586,7 @@ export default function Relatorios() {
   };
 
   return (
-    <div className="space-y-6 pb-20 animate-in fade-in duration-500 max-w-full overflow-hidden">
+    <div className="space-y-6 pb-20 animate-in fade-in duration-500">
       {/* Header */}
       <div data-tour="rel-header" className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
@@ -668,7 +668,7 @@ export default function Relatorios() {
       )}
 
       {/* Tabs */}
-      <div data-tour="rel-tabs" className="grid grid-cols-3 gap-1 bg-white p-1 rounded-xl border border-zinc-200 w-full sm:w-fit sm:flex shadow-sm">
+      <div data-tour="rel-tabs" className="flex bg-white p-1 rounded-xl border border-zinc-200 w-full sm:w-fit shadow-sm">
         {([
           { id: 'diarios', label: 'Relatórios Diários', labelMobile: 'Diários', icon: FileText },
           { id: 'ferramentas', label: 'Ferramentas', labelMobile: 'Ferramentas', icon: Hammer },
@@ -689,7 +689,7 @@ export default function Relatorios() {
               setToolMovementStatusFilter('Todos');
             }}
             className={cn(
-              'min-w-0 flex items-center justify-center gap-1.5 px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all',
+              'flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all',
               activeTab === tab.id
                 ? 'bg-zinc-900 text-white shadow-md'
                 : 'text-zinc-500 hover:bg-zinc-50'
@@ -1986,7 +1986,7 @@ function KPICard({ label, value, sub, color }: {
     red:    'border-red-100    text-red-700    bg-red-50',
   };
   return (
-    <div className={cn('min-w-0 p-3 sm:p-5 rounded-xl border shadow-sm', styles[color])}>
+    <div className={cn('p-3 sm:p-5 rounded-xl border shadow-sm', styles[color])}>
       <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest mb-1 sm:mb-2 opacity-60">{label}</p>
       <p className="text-lg sm:text-2xl font-black mb-0.5 truncate">{value}</p>
       <p className="text-[9px] sm:text-[10px] opacity-50 font-medium truncate">{sub}</p>
@@ -2113,10 +2113,10 @@ function BIDashboard({ obras, materiais, atividades, checklists, tools, toolLogs
     .slice(0, 5);
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500 max-w-full overflow-hidden">
+    <div className="space-y-6 animate-in fade-in duration-500">
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 min-[380px]:grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
         <KPICard label="Obras Ativas" value={String(obrasAtivas)} sub={`de ${obras.length} total`} color="blue" />
         <KPICard label="Progresso Geral" value={`${progressoGeral.toFixed(1)}%`} sub="mão de obra" color="green" />
         <KPICard label="Valor Executado" value={fmtBRL(valorExecutado)} sub={`orçado: ${fmtBRL(valorOrcado)}`} color="amber" />
@@ -2126,16 +2126,16 @@ function BIDashboard({ obras, materiais, atividades, checklists, tools, toolLogs
       </div>
 
       {/* Progresso por Obra + Status */}
-      <div className="grid lg:grid-cols-3 gap-4 sm:gap-6">
-        <div className="min-w-0 lg:col-span-2 bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
           <h3 className="font-semibold text-zinc-900 mb-0.5">Progresso por Obra</h3>
           <p className="text-xs text-zinc-400 mb-5">% de execução da mão de obra — verde ≥80% · amarelo ≥40% · vermelho &lt;40%</p>
           {progressoPorObra.length > 0 ? (
             <ResponsiveContainer width="100%" height={Math.max(180, progressoPorObra.length * 44)}>
-              <BarChart data={progressoPorObra} layout="vertical" margin={{ left: 0, right: 28, top: 0, bottom: 0 }}>
+              <BarChart data={progressoPorObra} layout="vertical" margin={{ left: 4, right: 52, top: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f1f1" />
                 <XAxis type="number" domain={[0, 100]} fontSize={10} tickFormatter={v => `${v}%`} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="nome" width={92} fontSize={9} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="nome" width={135} fontSize={10} axisLine={false} tickLine={false} />
                 <Tooltip formatter={(v: any) => [`${v}%`, 'Progresso']} contentStyle={{ borderRadius: '8px', border: '1px solid #e4e4e7', fontSize: 12 }} />
                 <Bar dataKey="progresso" radius={[0, 4, 4, 0]} barSize={20}
                   label={{ position: 'right', fontSize: 10, fontWeight: 700, formatter: (v: any) => `${v}%` }}>
@@ -2150,7 +2150,7 @@ function BIDashboard({ obras, materiais, atividades, checklists, tools, toolLogs
           )}
         </div>
 
-        <div className="min-w-0 bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+        <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
           <h3 className="font-semibold text-zinc-900 mb-0.5">Status das Obras</h3>
           <p className="text-xs text-zinc-400 mb-5">distribuição atual</p>
           {obras.length > 0 ? (
@@ -2184,8 +2184,8 @@ function BIDashboard({ obras, materiais, atividades, checklists, tools, toolLogs
       </div>
 
       {/* Evolução temporal + Centro de Custo */}
-      <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">
-        <div className="min-w-0 bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+      <div className="grid lg:grid-cols-2 gap-6">
+        <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
           <h3 className="font-semibold text-zinc-900 mb-0.5">Evolução do Progresso Global</h3>
           <p className="text-xs text-zinc-400 mb-5">últimos 30 dias — % geral de todas as obras</p>
           {evolucao.length > 1 ? (
@@ -2209,7 +2209,7 @@ function BIDashboard({ obras, materiais, atividades, checklists, tools, toolLogs
           )}
         </div>
 
-        <div className="min-w-0 bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+        <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
           <h3 className="font-semibold text-zinc-900 mb-0.5">Obras por Centro de Custo</h3>
           <p className="text-xs text-zinc-400 mb-5">quantidade de obras por categoria</p>
           {centroCustoData.length > 0 ? (
@@ -2230,8 +2230,8 @@ function BIDashboard({ obras, materiais, atividades, checklists, tools, toolLogs
       </div>
 
       {/* Orçado × Executado + Atividades Críticas */}
-      <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">
-        <div className="min-w-0 bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+      <div className="grid lg:grid-cols-2 gap-6">
+        <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
           <h3 className="font-semibold text-zinc-900 mb-0.5">Orçado × Executado por Obra</h3>
           <p className="text-xs text-zinc-400 mb-5">valor financeiro em R$ — requer valor unitário nas atividades</p>
           {progressoPorObra.filter(o => o.orcado > 0 || o.executado > 0).length > 0 ? (
@@ -2251,7 +2251,7 @@ function BIDashboard({ obras, materiais, atividades, checklists, tools, toolLogs
           )}
         </div>
 
-        <div className="min-w-0 bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+        <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
           <h3 className="font-semibold text-zinc-900 mb-0.5 flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-red-500" />
             Atividades Críticas
@@ -2287,7 +2287,7 @@ function BIDashboard({ obras, materiais, atividades, checklists, tools, toolLogs
 
       {/* Top Materiais */}
       {topMateriais.length > 0 && (
-        <div className="min-w-0 bg-white p-4 sm:p-6 rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+        <div className="bg-white p-6 rounded-xl border border-zinc-200 shadow-sm">
           <h3 className="font-semibold text-zinc-900 mb-0.5">Top 5 Materiais por Volume</h3>
           <p className="text-xs text-zinc-400 mb-5">maior quantidade total entregue</p>
           <ResponsiveContainer width="100%" height={180}>
