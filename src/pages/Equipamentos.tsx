@@ -19,8 +19,8 @@ import {
 
 const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-const fator = (v: number | null) => v === null ? 'Sem dados' : v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const calcFatorLocacao = (custoAquisicao: number, receita: number) => custoAquisicao > 0 && receita > 0 ? receita / custoAquisicao : null;
+const fator = (v: number | null) => v === null ? 'Sem dados' : `${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+const calcFatorLocacao = (custo: number, receita: number) => custo > 0 ? ((receita / custo) - 1) * 100 : null;
 
 const statusBadge = (s: EquipamentoStatus) => ({
   'Ativo': 'bg-green-100 text-green-700',
@@ -41,7 +41,7 @@ function calcFinance(eq: Equipamento, manuts: EquipamentoManutencao[], locs: Equ
   const receita = locs.reduce((a, l) => a + (l.valorLocacao || 0), 0);
   const custoTotal = custoManutencao + custoAquisicao;
   const resultado = receita - custoTotal;
-  const fatorLocacao = calcFatorLocacao(custoAquisicao, receita);
+  const fatorLocacao = calcFatorLocacao(custoTotal, receita);
   return { custoManutencao, custoAquisicao, receita, custoTotal, resultado, fatorLocacao, nManut: manuts.length, nLoc: locs.length };
 }
 
@@ -89,17 +89,27 @@ export default function Equipamentos() {
   const totals = useMemo(() => {
     const vals: Finance[] = Object.values(financeById);
     const receita = vals.reduce((a, f) => a + f.receita, 0);
-    const custoAquisicao = vals.reduce((a, f) => a + f.custoAquisicao, 0);
+    const custo = vals.reduce((a, f) => a + f.custoTotal, 0);
     return {
       receita,
-      custo: vals.reduce((a, f) => a + f.custoTotal, 0),
+      custo,
       resultado: vals.reduce((a, f) => a + f.resultado, 0),
-      fatorLocacao: calcFatorLocacao(custoAquisicao, receita),
+      fatorLocacao: calcFatorLocacao(custo, receita),
     };
   }, [financeById]);
 
   const fatorPeriodos = useMemo(() => {
     const custoAquisicao = equipamentos.reduce((a, e) => a + (e.valorAquisicao || 0), 0);
+    const custoManutencaoMes = manutencoes.reduce((acc, manut) => {
+      const data = parseDate(manut.data);
+      if (!data || data.getFullYear() !== agora.getFullYear() || data.getMonth() !== agora.getMonth()) return acc;
+      return acc + (manut.custoTotal || 0);
+    }, 0);
+    const custoManutencaoAno = manutencoes.reduce((acc, manut) => {
+      const data = parseDate(manut.data);
+      if (!data || data.getFullYear() !== agora.getFullYear()) return acc;
+      return acc + (manut.custoTotal || 0);
+    }, 0);
     const receitaMes = locacoes.reduce((acc, loc) => {
       const data = parseDate(loc.dataInicio);
       if (!data || data.getFullYear() !== agora.getFullYear() || data.getMonth() !== agora.getMonth()) return acc;
@@ -114,10 +124,10 @@ export default function Equipamentos() {
     return {
       receitaMes,
       receitaAno,
-      fatorMes: calcFatorLocacao(custoAquisicao, receitaMes),
-      fatorAno: calcFatorLocacao(custoAquisicao, receitaAno),
+      fatorMes: calcFatorLocacao(custoAquisicao + custoManutencaoMes, receitaMes),
+      fatorAno: calcFatorLocacao(custoAquisicao + custoManutencaoAno, receitaAno),
     };
-  }, [equipamentos, locacoes, agora]);
+  }, [equipamentos, manutencoes, locacoes, agora]);
 
   const rankLucrativos = [...equipamentos].sort((a, b) => (financeById[b.id]?.resultado || 0) - (financeById[a.id]?.resultado || 0)).slice(0, 5);
   const rankCusto = [...equipamentos].sort((a, b) => (financeById[b.id]?.custoManutencao || 0) - (financeById[a.id]?.custoManutencao || 0)).slice(0, 5);
@@ -277,22 +287,28 @@ function EquipamentoDetalhe({ equipamento, manutencoes, locacoes, onBack, onEdit
   const manutFiltradas = manutencoes.filter(m => dentroPeriodo(parseDate(m.data)));
   const locFiltradas = locacoes.filter(l => dentroPeriodo(parseDate(l.dataInicio)));
   const f = calcFinance(equipamento, manutFiltradas, locFiltradas);
-  const fatorMes = calcFatorLocacao(
-    equipamento.valorAquisicao || 0,
-    locacoes.reduce((acc, loc) => {
+  const custoManutencaoMes = manutencoes.reduce((acc, manut) => {
+    const data = parseDate(manut.data);
+    if (!data || data.getFullYear() !== agora.getFullYear() || data.getMonth() !== agora.getMonth()) return acc;
+    return acc + (manut.custoTotal || 0);
+  }, 0);
+  const custoManutencaoAno = manutencoes.reduce((acc, manut) => {
+    const data = parseDate(manut.data);
+    if (!data || data.getFullYear() !== agora.getFullYear()) return acc;
+    return acc + (manut.custoTotal || 0);
+  }, 0);
+  const receitaMes = locacoes.reduce((acc, loc) => {
       const data = parseDate(loc.dataInicio);
       if (!data || data.getFullYear() !== agora.getFullYear() || data.getMonth() !== agora.getMonth()) return acc;
       return acc + (loc.valorLocacao || 0);
-    }, 0)
-  );
-  const fatorAno = calcFatorLocacao(
-    equipamento.valorAquisicao || 0,
-    locacoes.reduce((acc, loc) => {
+  }, 0);
+  const receitaAno = locacoes.reduce((acc, loc) => {
       const data = parseDate(loc.dataInicio);
       if (!data || data.getFullYear() !== agora.getFullYear()) return acc;
       return acc + (loc.valorLocacao || 0);
-    }, 0)
-  );
+  }, 0);
+  const fatorMes = calcFatorLocacao((equipamento.valorAquisicao || 0) + custoManutencaoMes, receitaMes);
+  const fatorAno = calcFatorLocacao((equipamento.valorAquisicao || 0) + custoManutencaoAno, receitaAno);
 
   // Gráfico: custo x receita por mês (últimos 12 meses)
   const chartData = useMemo(() => {
@@ -379,7 +395,7 @@ function EquipamentoDetalhe({ equipamento, manutencoes, locacoes, onBack, onEdit
       <div className="-mt-3 space-y-1">
         {periodo !== 'tudo' && <p className="text-[11px] text-zinc-400">* Custo de aquisição é total (não filtrado por período).</p>}
         <p className="text-[11px] text-zinc-400">
-          Fator de locação = receita de locação dividida pelo valor de aquisição, considerando o ano ou mês atual.
+          Fator de locação = (receita / custo - 1) × 100, usando receita de locação e custos do ano ou mês atual.
         </p>
       </div>
 
