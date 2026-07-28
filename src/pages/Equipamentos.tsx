@@ -19,7 +19,7 @@ import {
 
 const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-const fator = (v: number | null) => v === null ? 'Sem dados' : `${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+const fator = (v: number | null) => v === null ? 'Sem dados' : `${Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 const calcFatorLocacao = (custo: number, receita: number) => custo > 0 ? (1 - (receita / custo)) * 100 : null;
 
 const statusBadge = (s: EquipamentoStatus) => ({
