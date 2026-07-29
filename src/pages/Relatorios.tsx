@@ -45,6 +45,7 @@ import { uploadFile } from '../lib/services';
 import { utils, read, writeFile } from 'xlsx';
 import { useAuth } from '../App';
 import { formatGeo, mapsUrl } from '../lib/geo';
+import { applyFiscalInvoiceSheetLayout, buildFiscalInvoiceRows, fiscalInvoiceHeaders } from '../lib/fiscalExcel';
 
 import { parseDateSafe as parseDate } from '../lib/dateUtils';
 
@@ -286,23 +287,11 @@ export default function Relatorios() {
 
   const handleExportFiscal = () => {
     const wb = utils.book_new();
-    const data = filteredFiscal.map(f => ({
-      'Tipo': f.tipo === 'NF' ? 'Nota Fiscal' : 'Cupom Fiscal',
-      'Data': f.data ? parseDate(f.data).toLocaleDateString('pt-BR') : '---',
-      'Valor (R$)': typeof f.valor === 'number' ? f.valor.toFixed(2).replace('.', ',') : '---',
-      'Fornecedor': f.fornecedor || '---',
-      'Cartão (final)': f.cartaoFinal || '---',
-      'Obra': f.obraNome || '---',
-      'Presentes': (f.operadoresPresentes || []).map(o => o.nome).join(', ') || '---',
-      'Lançado por': f.criadoPorNome || '---',
-      'Documento (foto)': f.fotoPath || f.fotoUrl || '---',
-      'Tamanho original': f.fotoSizeBytes || 0,
-      'Tamanho armazenado': f.fotoStorageSizeBytes || 0,
-      'Tamanho miniatura': f.thumbnailSizeBytes || 0,
-    }));
-    const ws = utils.json_to_sheet(data);
-    utils.book_append_sheet(wb, ws, 'NF e Cupons');
-    writeFile(wb, `relatorio-fiscal-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    const data = buildFiscalInvoiceRows(filteredFiscal, obras);
+    const ws = utils.json_to_sheet(data, { header: fiscalInvoiceHeaders, cellDates: true });
+    applyFiscalInvoiceSheetLayout(ws);
+    utils.book_append_sheet(wb, ws, 'Sheet1');
+    writeFile(wb, `importacao_faturas_exsergia_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
   const handleExportInventario = () => {

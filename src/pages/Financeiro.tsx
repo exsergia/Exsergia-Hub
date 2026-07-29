@@ -20,6 +20,7 @@ import {
   Download,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { applyFiscalInvoiceSheetLayout, buildFiscalInvoiceRows, fiscalInvoiceHeaders } from '../lib/fiscalExcel';
 
 const brl = (value: number) => new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -171,24 +172,14 @@ export default function Financeiro() {
       ReceitaExecutada: (a.quantidadeExecutada || 0) * (a.valorUnitario || 0),
     }));
 
-    const fiscalData = filteredFiscalDocs.map(f => ({
-      Obra: obras.find(o => o.id === f.obraId)?.nome || '',
-      Cliente: obras.find(o => o.id === f.obraId)?.cliente || '',
-      CentroCusto: obras.find(o => o.id === f.obraId)?.centroCusto || '',
-      Data: f.data || '',
-      Tipo: f.tipo || '',
-      CartaoFinal: f.cartaoFinal || '',
-      Despesa: f.fornecedor || '',
-      Valor: f.valor || 0,
-      LancadoPor: f.criadoPorNome || '',
-      Presentes: (f.operadoresPresentes || []).map(op => op.nome).join(', '),
-      Observacoes: f.observacoes || '',
-    }));
+    const fiscalData = buildFiscalInvoiceRows(filteredFiscalDocs, obras);
 
     utils.book_append_sheet(workbook, utils.json_to_sheet(resumo), 'Resumo');
     utils.book_append_sheet(workbook, utils.json_to_sheet(materiaisData), 'Materiais');
     utils.book_append_sheet(workbook, utils.json_to_sheet(atividadesData), 'Progresso');
-    utils.book_append_sheet(workbook, utils.json_to_sheet(fiscalData), 'NF Cupom');
+    const fiscalSheet = utils.json_to_sheet(fiscalData, { header: fiscalInvoiceHeaders, cellDates: true });
+    applyFiscalInvoiceSheetLayout(fiscalSheet);
+    utils.book_append_sheet(workbook, fiscalSheet, 'NF Cupom');
 
     const safeObra = obraLabel.replace(/[^a-z0-9]+/gi, '_').slice(0, 40);
     writeFile(workbook, `Financeiro_${safeObra}_${generatedAt.toISOString().slice(0, 10)}.xlsx`);
