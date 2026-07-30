@@ -241,11 +241,11 @@ export default function Equipamentos() {
                   </div>
                   <h4 className="font-bold text-zinc-900 break-words">{eq.nome}</h4>
                   {eq.codigo && <p className="text-[10px] text-zinc-400 font-mono">{eq.codigo}</p>}
-                  <div className="mt-4 grid grid-cols-4 gap-2 text-center">
-                    <div><p className="text-[9px] font-bold text-zinc-400 uppercase">Receita</p><p className="text-xs font-black text-green-600">{brl(f?.receita || 0)}</p></div>
-                    <div><p className="text-[9px] font-bold text-zinc-400 uppercase">Custo</p><p className="text-xs font-black text-red-500">{brl(f?.custoTotal || 0)}</p></div>
-                    <div><p className="text-[9px] font-bold text-zinc-400 uppercase">Result.</p><p className={cn('text-xs font-black', (f?.resultado || 0) >= 0 ? 'text-green-600' : 'text-red-600')}>{brl(f?.resultado || 0)}</p></div>
-                    <div><p className="text-[9px] font-bold text-zinc-400 uppercase">Fator</p><p className="text-xs font-black text-zinc-700">{fator(f?.fatorLocacao ?? null)}</p></div>
+                  <div className="mt-4 grid grid-cols-2 2xl:grid-cols-4 gap-2 text-left">
+                    <div className="min-w-0 rounded-xl bg-zinc-50/70 px-2.5 py-2"><p className="text-[9px] font-bold text-zinc-400 uppercase">Receita</p><p className="text-[11px] sm:text-xs font-black text-green-600 break-words leading-tight">{brl(f?.receita || 0)}</p></div>
+                    <div className="min-w-0 rounded-xl bg-zinc-50/70 px-2.5 py-2"><p className="text-[9px] font-bold text-zinc-400 uppercase">Custo</p><p className="text-[11px] sm:text-xs font-black text-red-500 break-words leading-tight">{brl(f?.custoTotal || 0)}</p></div>
+                    <div className="min-w-0 rounded-xl bg-zinc-50/70 px-2.5 py-2"><p className="text-[9px] font-bold text-zinc-400 uppercase">Result.</p><p className={cn('text-[11px] sm:text-xs font-black break-words leading-tight', (f?.resultado || 0) >= 0 ? 'text-green-600' : 'text-red-600')}>{brl(f?.resultado || 0)}</p></div>
+                    <div className="min-w-0 rounded-xl bg-zinc-50/70 px-2.5 py-2"><p className="text-[9px] font-bold text-zinc-400 uppercase">Fator</p><p className="text-[11px] sm:text-xs font-black text-zinc-700 break-words leading-tight">{fator(f?.fatorLocacao ?? null)}</p></div>
                   </div>
                 </button>
               );
