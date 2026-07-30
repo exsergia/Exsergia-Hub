@@ -228,7 +228,7 @@ export default function Equipamentos() {
             <p className="text-xs text-zinc-400">Cadastre o primeiro ativo para acompanhar custo e rentabilidade.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
             {equipamentos.map(eq => {
               const f = financeById[eq.id];
               return (
@@ -241,7 +241,7 @@ export default function Equipamentos() {
                   </div>
                   <h4 className="font-bold text-zinc-900 break-words">{eq.nome}</h4>
                   {eq.codigo && <p className="text-[10px] text-zinc-400 font-mono">{eq.codigo}</p>}
-                  <div className="mt-4 grid grid-cols-2 2xl:grid-cols-4 gap-2 text-left">
+                  <div className="mt-4 grid grid-cols-2 xl:grid-cols-4 gap-2 text-left">
                     <div className="min-w-0 rounded-xl bg-zinc-50/70 px-2.5 py-2"><p className="text-[9px] font-bold text-zinc-400 uppercase">Receita</p><p className="text-[11px] sm:text-xs font-black text-green-600 break-words leading-tight">{brl(f?.receita || 0)}</p></div>
                     <div className="min-w-0 rounded-xl bg-zinc-50/70 px-2.5 py-2"><p className="text-[9px] font-bold text-zinc-400 uppercase">Custo</p><p className="text-[11px] sm:text-xs font-black text-red-500 break-words leading-tight">{brl(f?.custoTotal || 0)}</p></div>
                     <div className="min-w-0 rounded-xl bg-zinc-50/70 px-2.5 py-2"><p className="text-[9px] font-bold text-zinc-400 uppercase">Result.</p><p className={cn('text-[11px] sm:text-xs font-black break-words leading-tight', (f?.resultado || 0) >= 0 ? 'text-green-600' : 'text-red-600')}>{brl(f?.resultado || 0)}</p></div>
@@ -537,7 +537,7 @@ function KPI({ label, value, icon, tone, small }: { label: string; value: string
       <div className={cn('w-9 h-9 rounded-xl bg-zinc-50 flex items-center justify-center shrink-0', toneCls)}>{icon}</div>
       <div className="min-w-0">
         <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">{label}</p>
-        <p className={cn('font-black truncate', small ? 'text-sm' : 'text-lg', toneCls)}>{value}</p>
+        <p className={cn('font-black leading-tight break-words', small ? 'text-sm' : 'text-base xl:text-lg', toneCls)}>{value}</p>
       </div>
     </div>
   );
