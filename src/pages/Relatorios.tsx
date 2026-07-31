@@ -334,7 +334,7 @@ export default function Relatorios() {
   const handleExportFiscal = () => {
     const wb = utils.book_new();
     const data = buildFiscalInvoiceRows(filteredFiscal, obras);
-    const ws = utils.json_to_sheet(data, { header: fiscalInvoiceHeaders, cellDates: true });
+    const ws = utils.json_to_sheet(data, { header: fiscalInvoiceHeaders });
     applyFiscalInvoiceSheetLayout(ws);
     utils.book_append_sheet(wb, ws, 'Sheet1');
     writeFile(wb, `importacao_faturas_exsergia_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);

@@ -177,7 +177,7 @@ export default function Financeiro() {
     utils.book_append_sheet(workbook, utils.json_to_sheet(resumo), 'Resumo');
     utils.book_append_sheet(workbook, utils.json_to_sheet(materiaisData), 'Materiais');
     utils.book_append_sheet(workbook, utils.json_to_sheet(atividadesData), 'Progresso');
-    const fiscalSheet = utils.json_to_sheet(fiscalData, { header: fiscalInvoiceHeaders, cellDates: true });
+    const fiscalSheet = utils.json_to_sheet(fiscalData, { header: fiscalInvoiceHeaders });
     applyFiscalInvoiceSheetLayout(fiscalSheet);
     utils.book_append_sheet(workbook, fiscalSheet, 'NF Cupom');
 
