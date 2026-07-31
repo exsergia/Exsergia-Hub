@@ -97,7 +97,11 @@ export function applyFiscalInvoiceSheetLayout(sheet: any) {
     for (let row = 2; ; row += 1) {
       const cell = sheet[`${column}${row}`];
       if (!cell) break;
-      cell.z = 'dd/mm/yyyy';
+      const value = cell.w || cell.v;
+      cell.t = 's';
+      cell.v = String(value || '');
+      cell.w = String(value || '');
+      cell.z = '@';
     }
   }
 }
