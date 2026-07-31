@@ -658,7 +658,7 @@ function FiscalModal({
                 onChange={e => setFornecedor(e.target.value)}
                 className="w-full min-h-12 px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:border-zinc-900"
               >
-                <option value="">Opcional</option>
+                <option value="">Selecione a despesa</option>
                 {fornecedor && !DESPESAS_OPTIONS.includes(fornecedor) && (
                   <option value={fornecedor}>{fornecedor}</option>
                 )}
