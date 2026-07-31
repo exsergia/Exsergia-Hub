@@ -14,7 +14,7 @@ import { cn } from '../lib/utils';
 import {
   Receipt, Plus, Camera, X, Search, CreditCard, Calendar,
   AlertCircle, Trash2, CheckCircle2, User,
-  HardHat, Users, Edit2, Download,
+  HardHat, Users, Edit2, Download, ChevronDown,
 } from 'lucide-react';
 import { Obra, Operator } from '../types';
 
@@ -429,6 +429,8 @@ function FiscalModal({
   const [cartaoFinal, setCartaoFinalState] = useState(editingDoc?.cartaoFinal || draft.cartaoFinal);
   const [observacoes, setObservacoesState] = useState(editingDoc?.observacoes || draft.observacoes);
   const [obraId, setObraIdState] = useState(editingDoc?.obraId || draft.obraId);
+  const [obraPickerOpen, setObraPickerOpen] = useState(false);
+  const [obraSearch, setObraSearch] = useState('');
   const [operadoresPresentes, setOperadoresPresentesState] = useState<string[]>(editingDoc ? (editingDoc.operadoresPresentes || []).map(op => op.id) : draft.operadoresPresentes);
   const existingHasPhoto = Boolean(editingDoc?.fotoPath || editingDoc?.fotoUrl);
   const [fotoFile, setFotoFile] = useState<File | null>(() => existingHasPhoto ? new File([], 'existing-fiscal-photo') : null);
@@ -474,6 +476,11 @@ function FiscalModal({
 
   // Equipe da obra selecionada — os operadores presentes saem DAQUI, não de todos.
   const obraSelecionada = obras.find(o => o.id === obraId);
+  const obrasFiltradas = obrasDisponiveis.filter(o => {
+    const termo = obraSearch.trim().toLowerCase();
+    if (!termo) return true;
+    return (o.nome || '').toLowerCase().includes(termo);
+  });
   const idsEquipe = obraSelecionada
     ? (obraSelecionada.operadoresIds?.length ? obraSelecionada.operadoresIds : (obraSelecionada.equipe || []).map(e => e.operatorId))
     : [];
@@ -690,14 +697,33 @@ function FiscalModal({
           {/* Obra vinculada */}
           <div className="space-y-2">
             <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">Obra vinculada</label>
-            <div className="relative">
-              <HardHat className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <select value={obraId} onChange={e => { setObraId(e.target.value); setOperadoresPresentes([]); }}
-                className="w-full pl-9 pr-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:border-zinc-900 appearance-none">
-                <option value="">Nenhuma</option>
-                {obrasDisponiveis.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
-              </select>
-            </div>
+            <button
+              type="button"
+              onClick={() => setObraPickerOpen(true)}
+              className={cn(
+                "w-full min-h-14 rounded-2xl border px-4 py-3 text-left transition-all flex items-center gap-3",
+                obraId ? "bg-white border-zinc-300 shadow-sm" : "bg-zinc-50 border-zinc-200 hover:bg-zinc-100"
+              )}
+            >
+              <span className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+                obraId ? "bg-blue-50 text-blue-600" : "bg-zinc-100 text-zinc-400"
+              )}>
+                <HardHat className="w-5 h-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                  {obraId ? 'Selecionada' : 'Sem obra vinculada'}
+                </span>
+                <span className={cn(
+                  "block text-sm font-bold leading-snug break-words",
+                  obraId ? "text-zinc-900" : "text-zinc-500"
+                )}>
+                  {obraSelecionada?.nome || 'Nenhuma'}
+                </span>
+              </span>
+              <ChevronDown className="w-5 h-5 text-zinc-400 shrink-0" />
+            </button>
           </div>
 
           {/* Operadores presentes (multi-seleção) */}
@@ -745,6 +771,117 @@ function FiscalModal({
           idealHeight={1440}
           documentMode
         />
+      )}
+
+      {obraPickerOpen && (
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-zinc-950/55 backdrop-blur-sm p-0 sm:p-4">
+          <div className="w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[84dvh] flex flex-col overflow-hidden">
+            <div className="p-5 border-b border-zinc-100 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-lg font-black text-zinc-950">Obra vinculada</h4>
+                  <p className="text-xs text-zinc-500">Escolha uma obra ativa para relacionar ao lançamento.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setObraPickerOpen(false)}
+                  className="w-10 h-10 rounded-xl bg-zinc-100 text-zinc-500 hover:bg-zinc-200 flex items-center justify-center transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="relative">
+                <Search className="w-4 h-4 text-zinc-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  value={obraSearch}
+                  onChange={e => setObraSearch(e.target.value)}
+                  placeholder="Buscar obra..."
+                  className="w-full h-12 pl-11 pr-4 rounded-2xl border border-zinc-200 bg-zinc-50 text-sm font-semibold focus:outline-none focus:border-zinc-900"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="overflow-y-auto p-3 space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setObraId('');
+                  setOperadoresPresentes([]);
+                  setObraPickerOpen(false);
+                  setObraSearch('');
+                }}
+                className={cn(
+                  "w-full rounded-2xl border p-4 text-left flex items-center gap-3 transition-all",
+                  !obraId ? "border-zinc-900 bg-zinc-950 text-white" : "border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700"
+                )}
+              >
+                <span className={cn(
+                  "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+                  !obraId ? "bg-white/10 text-white" : "bg-zinc-100 text-zinc-400"
+                )}>
+                  <HardHat className="w-5 h-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-black">Nenhuma</span>
+                  <span className={cn("block text-xs", !obraId ? "text-white/70" : "text-zinc-400")}>
+                    Lançamento fiscal sem vínculo com obra
+                  </span>
+                </span>
+                {!obraId && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />}
+              </button>
+
+              {obrasFiltradas.map(o => {
+                const selected = o.id === obraId;
+                const codigo = (o.nome || '').split('-')[0]?.trim();
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => {
+                      setObraId(o.id);
+                      setOperadoresPresentes([]);
+                      setObraPickerOpen(false);
+                      setObraSearch('');
+                    }}
+                    className={cn(
+                      "w-full rounded-2xl border p-4 text-left flex items-start gap-3 transition-all",
+                      selected ? "border-blue-500 bg-blue-50 shadow-sm" : "border-zinc-200 bg-white hover:bg-zinc-50"
+                    )}
+                  >
+                    <span className={cn(
+                      "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5",
+                      selected ? "bg-blue-600 text-white" : "bg-zinc-100 text-zinc-500"
+                    )}>
+                      <HardHat className="w-5 h-5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      {codigo && (
+                        <span className={cn(
+                          "inline-flex max-w-full rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-widest mb-1",
+                          selected ? "bg-blue-100 text-blue-700" : "bg-zinc-100 text-zinc-500"
+                        )}>
+                          {codigo}
+                        </span>
+                      )}
+                      <span className="block text-sm font-black text-zinc-900 leading-snug break-words">
+                        {o.nome}
+                      </span>
+                    </span>
+                    {selected && <CheckCircle2 className="w-5 h-5 text-blue-600 shrink-0 mt-2" />}
+                  </button>
+                );
+              })}
+
+              {obrasFiltradas.length === 0 && (
+                <div className="py-10 text-center">
+                  <HardHat className="w-8 h-8 text-zinc-300 mx-auto mb-2" />
+                  <p className="text-sm font-bold text-zinc-500">Nenhuma obra encontrada.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
