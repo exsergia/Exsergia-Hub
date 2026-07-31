@@ -118,19 +118,14 @@ export function buildFiscalInvoiceRows(
     const paymentReference = fiscalPaymentReference(doc.data);
 
     const partnerName = normalize(firstPartnerName(doc));
-    const despesa = normalize(doc.fornecedor);
-
     const obraNome =
       doc.obraNome ||
       obras.find(obra => obra.id === doc.obraId)?.nome ||
       '';
 
     const termos = normalize(
-      [
-        despesa || doc.tipo,
-        doc.observacoes,
-        obraNome,
-      ]
+      (doc.operadoresPresentes || [])
+        .map(operador => operador.nome)
         .filter(Boolean)
         .join(' - ')
     );
@@ -141,7 +136,7 @@ export function buildFiscalInvoiceRows(
       [fiscalInvoiceHeaders[2]]: dateOnly,
       [fiscalInvoiceHeaders[3]]: dateOnly,
       [fiscalInvoiceHeaders[4]]: partnerName,
-      [fiscalInvoiceHeaders[5]]: termos || 'SEM DESCRIÇÃO',
+      [fiscalInvoiceHeaders[5]]: termos || 'SEM COLABORADOR',
       [fiscalInvoiceHeaders[6]]: obraNome || 'SEM PROJETO',
       [fiscalInvoiceHeaders[7]]: fiscalProduct(doc.fornecedor),
       [fiscalInvoiceHeaders[8]]: doc.cartaoFinal
