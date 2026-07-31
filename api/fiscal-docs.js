@@ -6,6 +6,7 @@ import {
   isAppAdmin,
   normalizeText,
   readJsonBody,
+  requireMethod,
   requireUser,
   sanitizeFiscalPayload,
   sendJson,
@@ -48,7 +49,9 @@ function filterFiscalDocs(items, query, user, admin) {
 }
 
 export default async function handler(req, res) {
+  res.req = req;
   if (handleOptions(req, res)) return;
+  if (!requireMethod(req, res, ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'])) return;
 
   let supabase;
   try {
@@ -112,6 +115,11 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PATCH' || req.method === 'PUT') {
+    if (!admin) {
+      sendJson(res, 403, { ok: false, error: 'Somente administradores podem editar documentos fiscais.' });
+      return;
+    }
+
     try {
       const body = await readJsonBody(req);
       const id = String(body.id || url.searchParams.get('id') || '').trim();
@@ -133,11 +141,6 @@ export default async function handler(req, res) {
       }
 
       const current = unwrapRow(currentRow);
-      if (!admin && current.criadoPorId !== user.id) {
-        sendJson(res, 403, { ok: false, error: 'Sem permissao para editar este documento.' });
-        return;
-      }
-
       const payload = {
         ...current,
         ...body,

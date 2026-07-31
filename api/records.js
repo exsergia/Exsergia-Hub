@@ -1,12 +1,15 @@
 import { randomUUID } from 'crypto';
 import {
   API_TABLES,
+  getOperatorProfile,
   getServerSupabase,
   handleOptions,
   isAppAdmin,
   normalizeText,
   readJsonBody,
+  requireMethod,
   requireUser,
+  sanitizeFiscalPayload,
   sendJson,
   toPositiveInt,
   unwrapRow,
@@ -43,7 +46,9 @@ function filterItems(items, query, user, admin, table) {
 }
 
 export default async function handler(req, res) {
+  res.req = req;
   if (handleOptions(req, res)) return;
+  if (!requireMethod(req, res, ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'])) return;
 
   let supabase;
   try {
@@ -64,6 +69,11 @@ export default async function handler(req, res) {
     assertAllowedTable(table);
   } catch (error) {
     sendJson(res, 400, { ok: false, error: error instanceof Error ? error.message : String(error) });
+    return;
+  }
+
+  if (!admin && !OPERATOR_READ_OWN_TABLES.has(table)) {
+    sendJson(res, 403, { ok: false, error: 'Sem permissao para consultar esta tabela pela API.' });
     return;
   }
 
@@ -115,9 +125,14 @@ export default async function handler(req, res) {
           return;
         }
         existing = currentRow ? unwrapRow(currentRow) : {};
+
+        if (!admin && table === 'fiscal_docs' && existing.criadoPorId && existing.criadoPorId !== user.id) {
+          sendJson(res, 403, { ok: false, error: 'Sem permissao para editar este documento.' });
+          return;
+        }
       }
 
-      const payload = {
+      let payload = {
         ...existing,
         ...body,
         id,
@@ -126,8 +141,18 @@ export default async function handler(req, res) {
       };
 
       if (!admin) {
-        payload.criadoPorId = user.id;
-        payload.criadoPorNome = payload.criadoPorNome || user.email || 'Usuario';
+        if (table !== 'fiscal_docs') {
+          sendJson(res, 403, { ok: false, error: 'Sem permissao para gravar nesta tabela pela API.' });
+          return;
+        }
+        const operatorProfile = await getOperatorProfile(supabase, user);
+        payload = {
+          ...payload,
+          ...sanitizeFiscalPayload({ ...payload, id }, user, operatorProfile),
+          id,
+          createdAt: existing.createdAt || body.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
       }
 
       const { error } = await supabase

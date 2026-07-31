@@ -1,7 +1,9 @@
-import { getServerSupabase, handleOptions, sendJson } from './_lib/api.js';
+import { getServerSupabase, handleOptions, requireMethod, sendJson } from './_lib/api.js';
 
 export default async function handler(req, res) {
+  res.req = req;
   if (handleOptions(req, res)) return;
+  if (!requireMethod(req, res, ['GET', 'OPTIONS'])) return;
 
   try {
     getServerSupabase();
@@ -16,7 +18,7 @@ export default async function handler(req, res) {
       ok: false,
       service: 'exsergia-api',
       supabaseConfigured: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: 'API nao configurada.',
     });
   }
 }

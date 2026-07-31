@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePersistedTab } from '../hooks/usePersistedTab';
 import { useCollection } from '../lib/supabaseHooks';
-import { collection, addDoc, serverTimestamp, updateDoc, doc, deleteDoc, query, where } from '../lib/supabaseDb';
+import { collection, addDoc, serverTimestamp, updateDoc, doc, deleteDoc, setDoc, query, where } from '../lib/supabaseDb';
 import { db, handleFirestoreError, OperationType } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Obra, ObraStatus, Operator, Atividade } from '../types';
@@ -737,8 +737,26 @@ function ObraDetails({
     }
     const current = rolesLocal[opId] || 'operator';
     const newRole = current === 'admin' ? 'operator' : 'admin';
+    const operator = todosOperadores.find(op => op.id === opId);
+    const email = (operator?.email || '').trim().toLowerCase();
+    if (!email) {
+      notify('error', 'E-mail obrigatÃ³rio', 'Cadastre um e-mail para alterar o acesso administrativo.');
+      return;
+    }
+
     setRolesLocal(prev => ({ ...prev, [opId]: newRole }));
     try {
+      if (newRole === 'admin') {
+        await setDoc(doc(db, 'admin_access', `email:${email}`), {
+          tipo: 'email',
+          valor: email,
+          email,
+          ativo: true,
+          createdAt: serverTimestamp(),
+        });
+      } else {
+        await deleteDoc(doc(db, 'admin_access', `email:${email}`));
+      }
       await updateDoc(doc(db, 'operadores', opId), { role: newRole });
       notify('success', 'Acesso atualizado', `${newRole === 'admin' ? 'Administrador ativado' : 'Acesso alterado para Operador'}.`);
     } catch (err) {

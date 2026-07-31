@@ -332,8 +332,7 @@ function App() {
         setEncarregadoObraIds([]);
       } else {
         const data = opSnap.data() as Operator;
-        const existingRole = data.role || 'operator';
-        const nextRole = isAdminByRegistry || existingRole === 'admin' ? 'admin' : 'operator';
+        const nextRole = isAdminByRegistry ? 'admin' : 'operator';
         const nextProfile = { ...data, email: emailLower || data.email, role: nextRole } as Operator;
         if (data.role !== nextRole) {
           withTimeout(updateDoc(opRef, { role: nextRole }), 5000, 'Atualização do perfil')

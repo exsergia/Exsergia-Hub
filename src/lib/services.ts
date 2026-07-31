@@ -1,4 +1,4 @@
-import { supabase, supabaseKey, supabaseUrl } from './supabase';
+import { auth, supabase, supabaseKey, supabaseUrl } from './supabase';
 import { compressImage } from './imageUtils';
 import { FiscalAiAnalysis } from '../types';
 
@@ -129,6 +129,7 @@ async function uploadBlobToBucket(bucket: string, fileName: string, body: Blob, 
 
 export async function uploadFiscalPhoto(file: File): Promise<FiscalPhotoUpload> {
   const baseName = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const userFolder = auth.currentUser?.id || 'anonymous';
   let fullImage: Blob = file;
   let thumbnail: Blob = file;
 
@@ -144,8 +145,8 @@ export async function uploadFiscalPhoto(file: File): Promise<FiscalPhotoUpload> 
     thumbnail = fullImage;
   }
 
-  const fotoPath = `fiscal/${baseName}.jpg`;
-  const thumbnailPath = `fiscal/thumbs/${baseName}.jpg`;
+  const fotoPath = `fiscal/${userFolder}/${baseName}.jpg`;
+  const thumbnailPath = `fiscal/${userFolder}/thumbs/${baseName}.jpg`;
 
   try {
     await Promise.all([
