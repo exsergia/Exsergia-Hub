@@ -4,7 +4,7 @@ import { collection, addDoc, deleteDoc, doc, serverTimestamp, query, orderBy, up
 import { db, handleFirestoreError, OperationType, auth } from '../lib/supabase';
 import { FiscalDoc } from '../types';
 import { useAuth } from '../App';
-import { deleteFiscalPhotos, getFiscalPhotoUrl, uploadFiscalPhoto } from '../lib/services';
+import { deleteFiscalPhotos, getFiscalPhotoUrl, getFiscalPhotoUrls, uploadFiscalPhoto } from '../lib/services';
 import { CameraCapture } from '../components/CameraCapture';
 import { CurrencyInput } from '../components/CurrencyInput';
 import { useAutoSaveForm } from '../hooks/useAutoSaveForm';
@@ -110,16 +110,19 @@ export default function NotasFiscais() {
       return;
     }
 
-    Promise.all(docsWithPrivateImages.map(async d => {
-      try {
-        const url = await getFiscalPhotoUrl(d.thumbnailPath || d.fotoPath);
-        return [d.id, url] as const;
-      } catch {
-        return [d.id, ''] as const;
-      }
-    })).then(entries => {
-      if (!cancelled) setFiscalThumbUrls(Object.fromEntries(entries.filter(([, url]) => url)));
-    });
+    const pathsById = docsWithPrivateImages.map(d => [d.id, d.thumbnailPath || d.fotoPath || ''] as const);
+    getFiscalPhotoUrls(pathsById.map(([, path]) => path))
+      .then(urlsByPath => {
+        if (cancelled) return;
+        setFiscalThumbUrls(Object.fromEntries(
+          pathsById
+            .map(([id, path]) => [id, urlsByPath[path] || ''] as const)
+            .filter(([, url]) => url)
+        ));
+      })
+      .catch(() => {
+        if (!cancelled) setFiscalThumbUrls({});
+      });
 
     return () => {
       cancelled = true;
@@ -294,7 +297,7 @@ export default function NotasFiscais() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map(d => {
+          {filtered.map((d, index) => {
             const dt = parseDate(d.data);
             const horaDoc = d.hora || (dt ? format(dt, 'HH:mm') : '');
             const downloadName = `${sanitizeFileName(`${d.tipo}-${d.fornecedor || d.obraNome || d.id}-${dt ? format(dt, 'yyyy-MM-dd') : 'sem-data'}`)}.jpg`;
@@ -306,7 +309,7 @@ export default function NotasFiscais() {
                   {hasImage ? (
                     <button type="button" onClick={() => openFiscalImage(d)} className="block w-full h-full text-left">
                       {previewUrl
-                        ? <img src={previewUrl} className="w-full h-full object-cover" alt="Documento fiscal" />
+                        ? <img src={previewUrl} className="w-full h-full object-cover" alt="Documento fiscal" loading={index < 6 ? 'eager' : 'lazy'} decoding="async" />
                         : <div className="w-full h-full flex items-center justify-center"><Receipt className="w-8 h-8 text-zinc-300 animate-pulse" /></div>}
                     </button>
                   ) : (

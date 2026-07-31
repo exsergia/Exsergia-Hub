@@ -3,7 +3,7 @@ import { usePersistedTab } from '../hooks/usePersistedTab';
 import { useCollection } from '../lib/supabaseHooks';
 import { collection, query, orderBy, addDoc, serverTimestamp, updateDoc, doc, arrayUnion, arrayRemove } from '../lib/supabaseDb';
 import { db, handleFirestoreError, OperationType } from '../lib/supabase';
-import { getFiscalPhotoUrl } from '../lib/services';
+import { getFiscalPhotoUrl, getFiscalPhotoUrls } from '../lib/services';
 import { Attachment, Checklist, Obra, Material, Atividade, Operator, Tool, ToolLog, Vehicle, VehicleLog, FiscalDoc } from '../types';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -167,27 +167,36 @@ export default function Relatorios() {
 
   useEffect(() => {
     let cancelled = false;
+    if (activeTab !== 'fiscal') {
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const docsWithPrivateImages = fiscalDocs.filter(f => f.thumbnailPath || f.fotoPath);
     if (docsWithPrivateImages.length === 0) {
       setFiscalThumbUrls({});
       return;
     }
 
-    Promise.all(docsWithPrivateImages.map(async f => {
-      try {
-        const url = await getFiscalPhotoUrl(f.thumbnailPath || f.fotoPath);
-        return [f.id, url] as const;
-      } catch {
-        return [f.id, ''] as const;
-      }
-    })).then(entries => {
-      if (!cancelled) setFiscalThumbUrls(Object.fromEntries(entries.filter(([, url]) => url)));
-    });
+    const pathsById = docsWithPrivateImages.map(f => [f.id, f.thumbnailPath || f.fotoPath || ''] as const);
+    getFiscalPhotoUrls(pathsById.map(([, path]) => path))
+      .then(urlsByPath => {
+        if (cancelled) return;
+        setFiscalThumbUrls(Object.fromEntries(
+          pathsById
+            .map(([id, path]) => [id, urlsByPath[path] || ''] as const)
+            .filter(([, url]) => url)
+        ));
+      })
+      .catch(() => {
+        if (!cancelled) setFiscalThumbUrls({});
+      });
 
     return () => {
       cancelled = true;
     };
-  }, [fiscalSnap]);
+  }, [activeTab, fiscalSnap]);
 
   const openFiscalImage = async (fiscalDoc: FiscalDoc) => {
     const url = fiscalDoc.fotoPath ? await getFiscalPhotoUrl(fiscalDoc.fotoPath) : fiscalDoc.fotoUrl || '';
@@ -888,7 +897,7 @@ export default function Relatorios() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredFiscal.map(f => {
+              {filteredFiscal.map((f, index) => {
                 const dt = parseDate(f.data);
                 const previewUrl = f.thumbnailPath || f.fotoPath ? fiscalThumbUrls[f.id] : f.fotoUrl;
                 const hasImage = Boolean(f.fotoPath || f.fotoUrl);
@@ -898,7 +907,7 @@ export default function Relatorios() {
                       <button type="button" onClick={() => openFiscalImage(f)} className="block w-full h-full text-left">
                       {hasImage
                         ? previewUrl
-                          ? <img src={previewUrl} className="w-full h-full object-cover" alt="Documento fiscal" />
+                          ? <img src={previewUrl} className="w-full h-full object-cover" alt="Documento fiscal" loading={index < 6 ? 'eager' : 'lazy'} decoding="async" />
                           : <div className="w-full h-full flex items-center justify-center"><Receipt className="w-8 h-8 text-zinc-300 animate-pulse" /></div>
                         : <div className="w-full h-full flex items-center justify-center"><Receipt className="w-8 h-8 text-zinc-300" /></div>}
                       </button>

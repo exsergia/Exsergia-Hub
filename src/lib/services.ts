@@ -45,6 +45,9 @@ const UPLOADS_BUCKET = 'uploads';
 const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 365;
 const FISCAL_BUCKET = 'fiscal-private';
 const FISCAL_SIGNED_URL_TTL_SECONDS = 60 * 10;
+const SIGNED_URL_CACHE_SAFETY_SECONDS = 30;
+
+const fiscalSignedUrlCache = new Map<string, { url: string; expiresAt: number }>();
 
 const buildAccessUrl = async (bucket: string, path: string) => {
   const { data, error } = await supabase.storage
@@ -130,13 +133,13 @@ export async function uploadFiscalPhoto(file: File): Promise<FiscalPhotoUpload> 
   let thumbnail: Blob = file;
 
   try {
-    fullImage = await compressImage(file, 2400, 0.9);
+    fullImage = await compressImage(file, 2200, 0.84);
   } catch {
     fullImage = file;
   }
 
   try {
-    thumbnail = await compressImage(file, 720, 0.72);
+    thumbnail = await compressImage(file, 560, 0.58);
   } catch {
     thumbnail = fullImage;
   }
@@ -145,8 +148,10 @@ export async function uploadFiscalPhoto(file: File): Promise<FiscalPhotoUpload> 
   const thumbnailPath = `fiscal/thumbs/${baseName}.jpg`;
 
   try {
-    await uploadBlobToBucket(FISCAL_BUCKET, fotoPath, fullImage);
-    await uploadBlobToBucket(FISCAL_BUCKET, thumbnailPath, thumbnail);
+    await Promise.all([
+      uploadBlobToBucket(FISCAL_BUCKET, fotoPath, fullImage),
+      uploadBlobToBucket(FISCAL_BUCKET, thumbnailPath, thumbnail),
+    ]);
 
     return {
       fotoPath,
@@ -179,11 +184,53 @@ export async function uploadFiscalPhoto(file: File): Promise<FiscalPhotoUpload> 
 
 export async function getFiscalPhotoUrl(path?: string, ttlSeconds = FISCAL_SIGNED_URL_TTL_SECONDS) {
   if (!path) return '';
+  const cacheKey = `${FISCAL_BUCKET}:${path}`;
+  const cached = fiscalSignedUrlCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.url;
+
   const { data, error } = await supabase.storage
     .from(FISCAL_BUCKET)
     .createSignedUrl(path, ttlSeconds);
   if (error) throw error;
+  fiscalSignedUrlCache.set(cacheKey, {
+    url: data.signedUrl,
+    expiresAt: Date.now() + Math.max(1, ttlSeconds - SIGNED_URL_CACHE_SAFETY_SECONDS) * 1000,
+  });
   return data.signedUrl;
+}
+
+export async function getFiscalPhotoUrls(paths: string[], ttlSeconds = FISCAL_SIGNED_URL_TTL_SECONDS) {
+  const uniquePaths = Array.from(new Set(paths.filter(Boolean)));
+  const result: Record<string, string> = {};
+  const missing: string[] = [];
+  const now = Date.now();
+
+  uniquePaths.forEach(path => {
+    const cacheKey = `${FISCAL_BUCKET}:${path}`;
+    const cached = fiscalSignedUrlCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      result[path] = cached.url;
+    } else {
+      missing.push(path);
+    }
+  });
+
+  if (missing.length === 0) return result;
+
+  const { data, error } = await supabase.storage
+    .from(FISCAL_BUCKET)
+    .createSignedUrls(missing, ttlSeconds);
+  if (error) throw error;
+
+  const expiresAt = Date.now() + Math.max(1, ttlSeconds - SIGNED_URL_CACHE_SAFETY_SECONDS) * 1000;
+  (data || []).forEach(item => {
+    if (!item.path || !item.signedUrl) return;
+    const cacheKey = `${FISCAL_BUCKET}:${item.path}`;
+    fiscalSignedUrlCache.set(cacheKey, { url: item.signedUrl, expiresAt });
+    result[item.path] = item.signedUrl;
+  });
+
+  return result;
 }
 
 export async function deleteFiscalPhotos(paths: Array<string | undefined>) {
