@@ -30,6 +30,48 @@ export function CameraCapture({
   const [focusMessage, setFocusMessage] = useState<string | null>(null);
   const [captured, setCaptured] = useState<string | null>(null);
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
+  const [stabilizing, setStabilizing] = useState(false);
+
+  const sleep = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms));
+
+  const findRearCameraDeviceId = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const rear = devices.find(device => {
+        if (device.kind !== 'videoinput') return false;
+        return /back|rear|environment|traseira|camera 0/i.test(device.label || '');
+      });
+      return rear?.deviceId;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const waitForVideo = async (video: HTMLVideoElement) => {
+    if (video.videoWidth > 0 && video.videoHeight > 0) return;
+    await new Promise<void>(resolve => {
+      const done = () => {
+        video.removeEventListener('loadedmetadata', done);
+        video.removeEventListener('canplay', done);
+        resolve();
+      };
+      video.addEventListener('loadedmetadata', done, { once: true });
+      video.addEventListener('canplay', done, { once: true });
+      window.setTimeout(done, 1200);
+    });
+  };
+
+  const buildVideoConstraints = (deviceId?: string, strictEnvironment = false): MediaTrackConstraints => {
+    const constraints: MediaTrackConstraints & { resizeMode?: string } = {
+      ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: strictEnvironment ? { exact: 'environment' } : { ideal: 'environment' } }),
+      width: { ideal: idealWidth },
+      height: { ideal: idealHeight },
+      aspectRatio: documentMode ? { ideal: idealWidth / idealHeight } : undefined,
+      frameRate: { ideal: 30, max: 30 },
+      resizeMode: 'none',
+    };
+    return constraints;
+  };
 
   const applyFocus = async (stream: MediaStream, point?: { x: number; y: number }) => {
     const track = stream.getVideoTracks()[0];
@@ -52,10 +94,14 @@ export function CameraCapture({
       advanced.push({ whiteBalanceMode: 'continuous' });
     }
 
+    if (documentMode && Array.isArray(capabilities.torch) && capabilities.torch.includes(false)) {
+      advanced.push({ torch: false });
+    }
+
     if (documentMode && typeof capabilities.zoom?.min === 'number' && typeof capabilities.zoom?.max === 'number') {
       const minZoom = capabilities.zoom.min;
       const maxZoom = capabilities.zoom.max;
-      const documentZoom = Math.min(maxZoom, Math.max(minZoom, 1.35));
+      const documentZoom = Math.min(maxZoom, Math.max(minZoom, 1.15));
       if (documentZoom > minZoom) advanced.push({ zoom: documentZoom });
     }
 
@@ -90,19 +136,36 @@ export function CameraCapture({
 
     stopStream();
     setReady(false);
+    setStabilizing(false);
     setCamError(null);
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
+      const rearDeviceId = await findRearCameraDeviceId();
+      const videoAttempts: MediaTrackConstraints[] = [
+        buildVideoConstraints(rearDeviceId),
+        buildVideoConstraints(undefined, true),
+        buildVideoConstraints(),
+        {
           facingMode: { ideal: 'environment' },
-          width: { ideal: idealWidth },
-          height: { ideal: idealHeight },
-          aspectRatio: documentMode ? { ideal: idealWidth / idealHeight } : undefined,
-          frameRate: { ideal: 30 },
+          width: { ideal: Math.min(idealWidth, 1920) },
+          height: { ideal: Math.min(idealHeight, 1080) },
+          frameRate: { ideal: 24, max: 30 },
         },
-        audio: false,
-      });
+      ];
+
+      let stream: MediaStream | null = null;
+      let lastError: unknown = null;
+
+      for (const video of videoAttempts) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+          break;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+
+      if (!stream) throw lastError;
 
       if (!mountedRef.current) {
         stream.getTracks().forEach(track => track.stop());
@@ -110,14 +173,20 @@ export function CameraCapture({
       }
 
       streamRef.current = stream;
-      void applyFocus(stream);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.muted = true;
         try {
           await videoRef.current.play();
+          await waitForVideo(videoRef.current);
+          await applyFocus(stream, { x: 0.5, y: 0.5 });
+          setStabilizing(true);
+          await sleep(documentMode ? 700 : 350);
+          if (!mountedRef.current) return;
+          setStabilizing(false);
           setReady(true);
         } catch {
+          setStabilizing(false);
           setReady(false);
         }
       }
@@ -150,13 +219,14 @@ export function CameraCapture({
   }, [documentMode, idealHeight, idealWidth]);
 
   const handleCapture = async () => {
-    if (!videoRef.current || !ready) return;
+    if (!videoRef.current || !ready || stabilizing) return;
+    setReady(false);
     const track = streamRef.current?.getVideoTracks()[0];
 
     if (documentMode && track && 'ImageCapture' in window) {
       try {
-        await applyFocus(streamRef.current);
-        await new Promise(resolve => window.setTimeout(resolve, 250));
+        await applyFocus(streamRef.current, { x: 0.5, y: 0.5 });
+        await sleep(650);
         const photo = await new (window as any).ImageCapture(track).takePhoto();
         const file = new File([photo], `foto-${Date.now()}.jpg`, { type: photo.type || 'image/jpeg' });
         stopStream();
@@ -169,11 +239,19 @@ export function CameraCapture({
     }
 
     const canvas = document.createElement('canvas');
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0);
+    canvas.width = videoRef.current.videoWidth || idealWidth;
+    canvas.height = videoRef.current.videoHeight || idealHeight;
+    const context = canvas.getContext('2d');
+    if (context) {
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = 'high';
+      context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    }
     canvas.toBlob(blob => {
-      if (!blob) return;
+      if (!blob) {
+        setReady(true);
+        return;
+      }
       const file = new File([blob], `foto-${Date.now()}.jpg`, { type: 'image/jpeg' });
       stopStream();
       setCapturedFile(file);
@@ -233,7 +311,7 @@ export function CameraCapture({
         )}
         {!captured && !camError && (
           <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-black/45 px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-white">
-            {focusMessage || 'Toque na tela para focar'}
+            {stabilizing ? 'Estabilizando imagem...' : (focusMessage || 'Toque na tela para focar')}
           </div>
         )}
       </div>
