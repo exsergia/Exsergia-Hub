@@ -36,6 +36,7 @@ import {
   AlertTriangle,
   MapPin,
   Receipt,
+  Download,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
@@ -84,6 +85,40 @@ const formatBytes = (bytes?: number) => {
   if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
   return `${Math.ceil(value / 1024)} KB`;
 };
+
+const sanitizeDownloadName = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 90) || 'imagem';
+
+async function downloadUrl(url?: string, filename = 'imagem.jpg') {
+  if (!url) return;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Falha ao baixar arquivo.');
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = sanitizeDownloadName(filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+  } catch {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = sanitizeDownloadName(filename);
+    link.target = '_blank';
+    link.rel = 'noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+}
 
 export default function Relatorios() {
   const { isAdmin, notify } = useAuth();
@@ -157,6 +192,17 @@ export default function Relatorios() {
   const openFiscalImage = async (fiscalDoc: FiscalDoc) => {
     const url = fiscalDoc.fotoPath ? await getFiscalPhotoUrl(fiscalDoc.fotoPath) : fiscalDoc.fotoUrl || '';
     if (url) window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const downloadFiscalImage = async (fiscalDoc: FiscalDoc) => {
+    const url = fiscalDoc.fotoPath ? await getFiscalPhotoUrl(fiscalDoc.fotoPath) : fiscalDoc.fotoUrl || '';
+    const date = parseDate(fiscalDoc.data);
+    const filename = [
+      fiscalDoc.tipo || 'documento-fiscal',
+      fiscalDoc.fornecedor || fiscalDoc.obraNome || fiscalDoc.id,
+      date ? format(date, 'yyyy-MM-dd') : '',
+    ].filter(Boolean).join('-');
+    await downloadUrl(url, `${filename}.jpg`);
   };
 
   const toolCategoryOptions = Array.from(
@@ -848,14 +894,26 @@ export default function Relatorios() {
                 const hasImage = Boolean(f.fotoPath || f.fotoUrl);
                 return (
                   <div key={f.id} className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
-                    <button type="button" onClick={() => openFiscalImage(f)} className="block relative aspect-video bg-zinc-100 w-full text-left">
+                    <div className="relative aspect-video bg-zinc-100 w-full">
+                      <button type="button" onClick={() => openFiscalImage(f)} className="block w-full h-full text-left">
                       {hasImage
                         ? previewUrl
                           ? <img src={previewUrl} className="w-full h-full object-cover" alt="Documento fiscal" />
                           : <div className="w-full h-full flex items-center justify-center"><Receipt className="w-8 h-8 text-zinc-300 animate-pulse" /></div>
                         : <div className="w-full h-full flex items-center justify-center"><Receipt className="w-8 h-8 text-zinc-300" /></div>}
+                      </button>
                       <span className={cn('absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider', f.tipo === 'NF' ? 'bg-blue-600 text-white' : 'bg-amber-500 text-white')}>{f.tipo}</span>
-                    </button>
+                      {hasImage && (
+                        <button
+                          type="button"
+                          onClick={() => downloadFiscalImage(f)}
+                          className="absolute top-2 right-2 w-9 h-9 rounded-full bg-white/90 text-zinc-700 shadow-sm border border-white/70 flex items-center justify-center hover:bg-white hover:text-zinc-950 transition-colors"
+                          title="Baixar imagem"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                     <div className="p-4 space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-lg font-black text-zinc-900">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(f.valor || 0)}</span>
@@ -935,9 +993,7 @@ export default function Relatorios() {
                     {devolucao && <span className="flex items-center gap-1"><ArrowDownLeft className="w-3 h-3 text-green-500" />{format(devolucao, 'dd/MM/yy HH:mm')}</span>}
                   </div>
                   {log.fotoDevolucaoUrl && (
-                    <a href={log.fotoDevolucaoUrl} target="_blank" rel="noopener noreferrer">
-                      <img src={log.fotoDevolucaoUrl} alt="Foto devolução" className="w-16 h-16 object-cover rounded-lg border border-zinc-200" />
-                    </a>
+                    <PhotoLink url={log.fotoDevolucaoUrl} label={`Devolucao ${tool?.nome || log.id}`} />
                   )}
                 </div>
               );
@@ -1020,13 +1076,7 @@ export default function Relatorios() {
                         )}
                       </td>
                       <td className="px-3 lg:px-5 py-4 text-center">
-                        {log.fotoDevolucaoUrl ? (
-                          <a href={log.fotoDevolucaoUrl} target="_blank" rel="noopener noreferrer" className="inline-block" title="Ver foto da devolução">
-                            <img src={log.fotoDevolucaoUrl} alt="Foto devolução" className="w-12 h-12 object-cover rounded-lg border border-zinc-200 hover:opacity-80 transition-opacity mx-auto" />
-                          </a>
-                        ) : (
-                          <span className="text-[10px] text-zinc-300 font-bold uppercase">—</span>
-                        )}
+                        <PhotoLink url={log.fotoDevolucaoUrl} label={`Devolucao ${tool?.nome || log.id}`} />
                       </td>
                       <td className="px-3 lg:px-5 py-4 text-center">
                         <span className={cn(
@@ -1064,7 +1114,7 @@ export default function Relatorios() {
                 <div key={tool.id} className="p-4 flex items-start gap-3">
                   <div className="w-12 h-12 rounded-xl bg-zinc-100 overflow-hidden shrink-0 flex items-center justify-center">
                     {tool.fotoModelo
-                      ? <img src={tool.fotoModelo} className="w-full h-full object-cover" alt={tool.nome} />
+                      ? <PhotoLink url={tool.fotoModelo} label={`Ferramenta ${tool.nome}`} />
                       : <Hammer className="w-5 h-5 text-zinc-400" />}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1130,13 +1180,7 @@ export default function Relatorios() {
                         </span>
                       </td>
                       <td className="px-5 py-4 text-center">
-                        {tool.fotoModelo ? (
-                          <a href={tool.fotoModelo} target="_blank" rel="noopener noreferrer">
-                            <img src={tool.fotoModelo} alt={tool.nome} className="w-12 h-12 object-cover rounded-lg border border-zinc-200 hover:opacity-80 transition-opacity mx-auto" />
-                          </a>
-                        ) : (
-                          <span className="text-[10px] text-zinc-300 font-bold">—</span>
-                        )}
+                        <PhotoLink url={tool.fotoModelo} label={`Ferramenta ${tool.nome}`} />
                       </td>
                       <td className="px-5 py-4 text-center">
                         <span className={cn(
@@ -1201,7 +1245,7 @@ export default function Relatorios() {
                     <div key={vehicle.id} className="p-4 flex items-start gap-3">
                       <div className="w-12 h-12 rounded-xl bg-zinc-100 overflow-hidden shrink-0 flex items-center justify-center">
                         {vehicle.fotoVeiculo
-                          ? <img src={vehicle.fotoVeiculo} className="w-full h-full object-cover" alt={vehicle.placa} />
+                          ? <PhotoLink url={vehicle.fotoVeiculo} label={`Veiculo ${vehicle.placa}`} />
                           : <Truck className="w-5 h-5 text-zinc-400" />}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -1527,23 +1571,34 @@ function VehicleStatusBadge({ status }: { status: Vehicle['status'] }) {
 
 function PhotoLink({ url, label, danger = false }: { key?: string | number; url?: string; label: string; danger?: boolean }) {
   if (!url) return <span className="text-[10px] text-zinc-300 font-bold uppercase">—</span>;
+  const filename = `${label}.jpg`;
 
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="relative inline-block group/photo" title={label}>
-      <img
-        src={url}
-        alt={label}
-        className={cn(
-          "w-12 h-12 object-cover rounded-lg border hover:opacity-80 transition-opacity mx-auto",
-          danger ? "border-amber-300 ring-2 ring-amber-100" : "border-zinc-200"
-        )}
-      />
+    <div className="relative inline-block group/photo" title={label}>
+      <a href={url} target="_blank" rel="noopener noreferrer" className="block">
+        <img
+          src={url}
+          alt={label}
+          className={cn(
+            "w-12 h-12 object-cover rounded-lg border hover:opacity-80 transition-opacity mx-auto",
+            danger ? "border-amber-300 ring-2 ring-amber-100" : "border-zinc-200"
+          )}
+        />
+      </a>
+      <button
+        type="button"
+        onClick={() => downloadUrl(url, filename)}
+        className="absolute -right-1 -top-1 w-6 h-6 rounded-full bg-white text-zinc-600 border border-zinc-200 shadow-sm flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover/photo:opacity-100 hover:text-zinc-950 transition-all"
+        title={`Baixar ${label}`}
+      >
+        <Download className="w-3 h-3" />
+      </button>
       {danger && (
         <span className="absolute inset-x-0 bottom-0 rounded-b-lg bg-amber-600/90 px-1 py-0.5 text-center text-[7px] font-bold uppercase tracking-tight text-white">
           Avaria
         </span>
       )}
-    </a>
+    </div>
   );
 }
 
@@ -1920,6 +1975,14 @@ function ReportDetails({ report, obra, materiais, atividades, operadores }: {
                   <a href={file.url} target="_blank" rel="noopener noreferrer" className="p-2 text-zinc-400 hover:text-zinc-900">
                     <ExternalLink className="w-4 h-4" />
                   </a>
+                  <button
+                    type="button"
+                    onClick={() => downloadUrl(file.url, file.name)}
+                    className="p-2 text-zinc-400 hover:text-zinc-900"
+                    title="Baixar anexo"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
                   {isAdmin && (
                     <button 
                       onClick={() => handleRemoveAttachment(file)}
@@ -1942,10 +2005,20 @@ function ReportDetails({ report, obra, materiais, atividades, operadores }: {
         {/* Foto */}
         {report.photoUrl && (
           <div className="space-y-2">
-            <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-              <ImageIcon className="w-4 h-4" />
-              Evidência Fotográfica
-            </h4>
+            <div className="flex items-center justify-between gap-3">
+              <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                <ImageIcon className="w-4 h-4" />
+                Evidência Fotográfica
+              </h4>
+              <button
+                type="button"
+                onClick={() => downloadUrl(report.photoUrl, `Evidencia ${obra?.nome || report.id}.jpg`)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-[10px] font-bold text-zinc-600 transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Baixar
+              </button>
+            </div>
             <div className="rounded-2xl overflow-hidden border border-zinc-200">
               <img 
                 src={report.photoUrl} 
