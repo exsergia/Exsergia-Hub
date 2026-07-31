@@ -37,6 +37,13 @@ const normalize = (value?: string) =>
     .toUpperCase()
     .trim();
 
+const stripTimeFromDateText = (value: unknown) => {
+  const text = String(value ?? '').trim();
+  const dateOnlyMatch = text.match(/^(\d{1,2}\/\d{1,2}\/\d{4})/);
+
+  return dateOnlyMatch ? dateOnlyMatch[1] : text;
+};
+
 /**
  * Converte o valor recebido em uma data sem considerar horário.
  *
@@ -155,6 +162,8 @@ export function applyFiscalInvoiceSheetLayout(sheet: any) {
     return;
   }
 
+  const lastRow = Number(range.split(':').pop()?.replace(/[A-Z]/gi, '') || 1);
+
   /**
    * As colunas C e D são configuradas explicitamente como texto.
    * Isso impede que Excel ou LibreOffice adicionem horário às datas.
@@ -162,15 +171,15 @@ export function applyFiscalInvoiceSheetLayout(sheet: any) {
   const dateColumns = ['C', 'D'];
 
   for (const column of dateColumns) {
-    for (let row = 2; ; row += 1) {
+    for (let row = 2; row <= lastRow; row += 1) {
       const cellReference = `${column}${row}`;
       const cell = sheet[cellReference];
 
       if (!cell) {
-        break;
+        continue;
       }
 
-      const value = String(cell.v ?? cell.w ?? '');
+      const value = stripTimeFromDateText(cell.w ?? cell.v);
 
       cell.t = 's';
       cell.v = value;
@@ -184,11 +193,11 @@ export function applyFiscalInvoiceSheetLayout(sheet: any) {
    * A referência de pagamento também é tratada como texto,
    * evitando conversões automáticas do Excel.
    */
-  for (let row = 2; ; row += 1) {
+  for (let row = 2; row <= lastRow; row += 1) {
     const cell = sheet[`A${row}`];
 
     if (!cell) {
-      break;
+      continue;
     }
 
     cell.t = 's';
