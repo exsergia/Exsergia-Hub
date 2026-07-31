@@ -158,6 +158,7 @@ export interface FiscalDoc {
   thumbnailSizeBytes?: number;
   valor: number;
   data: any;                  // data do documento (ISO)
+  hora?: string;              // horário informado no lançamento (HH:mm)
   fornecedor?: string;
   cartaoFinal?: string;       // últimos 4 dígitos do cartão usado
   observacoes?: string;       // legado (campo removido do formulário)

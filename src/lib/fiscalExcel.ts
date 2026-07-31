@@ -39,8 +39,10 @@ const normalize = (value?: string) =>
 
 const fiscalDate = (value: any) => {
   const parsed = parseDate(value) || new Date();
-  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), 12);
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
 };
+
+const fiscalDateOnly = (value: any) => format(fiscalDate(value), 'dd/MM/yyyy');
 
 const fiscalProduct = (despesa?: string) => {
   const value = normalize(despesa);
@@ -59,6 +61,7 @@ const firstPartnerName = (doc: FiscalDoc) =>
 export function buildFiscalInvoiceRows(fiscalDocs: FiscalDoc[], obras: Obra[]) {
   return fiscalDocs.map(doc => {
     const date = fiscalDate(doc.data);
+    const dateOnly = fiscalDateOnly(doc.data);
     const partnerName = normalize(firstPartnerName(doc));
     const despesa = normalize(doc.fornecedor);
     const obraNome = doc.obraNome || obras.find(o => o.id === doc.obraId)?.nome || '';
@@ -71,8 +74,8 @@ export function buildFiscalInvoiceRows(fiscalDocs: FiscalDoc[], obras: Obra[]) {
     return {
       [fiscalInvoiceHeaders[0]]: format(date, 'dMMyyyy'),
       [fiscalInvoiceHeaders[1]]: partnerName,
-      [fiscalInvoiceHeaders[2]]: date,
-      [fiscalInvoiceHeaders[3]]: date,
+      [fiscalInvoiceHeaders[2]]: dateOnly,
+      [fiscalInvoiceHeaders[3]]: dateOnly,
       [fiscalInvoiceHeaders[4]]: partnerName,
       [fiscalInvoiceHeaders[5]]: termos || 'SEM DESCRIÇÃO',
       [fiscalInvoiceHeaders[6]]: obraNome || 'SEM PROJETO',

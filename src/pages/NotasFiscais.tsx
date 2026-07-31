@@ -14,7 +14,7 @@ import { cn } from '../lib/utils';
 import {
   Receipt, Plus, Camera, X, Search, CreditCard, Calendar,
   AlertCircle, Trash2, CheckCircle2, User,
-  HardHat, Users, Edit2, Download, ChevronDown,
+  HardHat, Users, Edit2, Download, ChevronDown, Clock,
 } from 'lucide-react';
 import { Obra, Operator } from '../types';
 
@@ -77,6 +77,7 @@ type FiscalDraft = {
   tipo: 'NF' | 'Cupom';
   valor: number | '';
   data: string;
+  hora: string;
   fornecedor: string;
   cartaoFinal: string;
   observacoes: string;
@@ -295,6 +296,7 @@ export default function NotasFiscais() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(d => {
             const dt = parseDate(d.data);
+            const horaDoc = d.hora || (dt ? format(dt, 'HH:mm') : '');
             const downloadName = `${sanitizeFileName(`${d.tipo}-${d.fornecedor || d.obraNome || d.id}-${dt ? format(dt, 'yyyy-MM-dd') : 'sem-data'}`)}.jpg`;
             const previewUrl = d.thumbnailPath || d.fotoPath ? fiscalThumbUrls[d.id] : d.fotoUrl;
             const hasImage = Boolean(d.fotoPath || d.fotoUrl);
@@ -329,7 +331,7 @@ export default function NotasFiscais() {
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-lg font-black text-zinc-900">{brl(d.valor)}</span>
                     <span className="text-[11px] text-zinc-400 flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />{dt ? format(dt, 'dd/MM/yyyy') : '---'}
+                      <Calendar className="w-3 h-3" />{dt ? format(dt, 'dd/MM/yyyy') : '---'}{horaDoc ? ` ${horaDoc}` : ''}
                     </span>
                   </div>
                   {d.fornecedor && <p className="text-xs text-zinc-600 break-words flex items-center gap-1"><Receipt className="w-3 h-3 text-zinc-400" />{d.fornecedor}</p>}
@@ -415,6 +417,7 @@ function FiscalModal({
     tipo: 'Cupom',
     valor: '',
     data: format(new Date(), 'yyyy-MM-dd'),
+    hora: format(new Date(), 'HH:mm'),
     fornecedor: '',
     cartaoFinal: '',
     observacoes: '',
@@ -425,6 +428,7 @@ function FiscalModal({
   const [tipo, setTipoState] = useState<'NF' | 'Cupom'>(editingDoc?.tipo || draft.tipo);
   const [valor, setValorState] = useState<number | ''>(editingDoc?.valor || draft.valor);
   const [data, setDataState] = useState(editDate ? format(editDate, 'yyyy-MM-dd') : draft.data);
+  const [hora, setHoraState] = useState(editingDoc?.hora || (editDate ? format(editDate, 'HH:mm') : draft.hora));
   const [fornecedor, setFornecedorState] = useState(editingDoc?.fornecedor || draft.fornecedor);
   const [cartaoFinal, setCartaoFinalState] = useState(editingDoc?.cartaoFinal || draft.cartaoFinal);
   const [observacoes, setObservacoesState] = useState(editingDoc?.observacoes || draft.observacoes);
@@ -462,6 +466,7 @@ function FiscalModal({
   const setTipo = (value: 'NF' | 'Cupom') => { setTipoState(value); saveDraft({ tipo: value }); };
   const setValor = (value: number | '') => { setValorState(value); saveDraft({ valor: value }); };
   const setData = (value: string) => { setDataState(value); saveDraft({ data: value }); };
+  const setHora = (value: string) => { setHoraState(value); saveDraft({ hora: value }); };
   const setFornecedor = (value: string) => { setFornecedorState(value); saveDraft({ fornecedor: value }); };
   const setCartaoFinal = (value: string) => { setCartaoFinalState(value); saveDraft({ cartaoFinal: value }); };
   const setObservacoes = (value: string) => { setObservacoesState(value); saveDraft({ observacoes: value }); };
@@ -501,6 +506,14 @@ function FiscalModal({
     if (editingDoc && !isAdmin) { setError('Somente administradores podem editar lançamentos fiscais.'); return; }
     const valorNum = typeof valor === 'number' ? valor : NaN;
     if (!Number.isFinite(valorNum) || valorNum <= 0) { setError('Informe um valor válido.'); return; }
+    if (!data) { setError('Informe a data do documento fiscal.'); return; }
+    if (!hora || !/^\d{2}:\d{2}$/.test(hora)) { setError('Informe o horario do documento fiscal.'); return; }
+    if (!obraId) { setError('Selecione a obra vinculada ao lancamento fiscal.'); return; }
+    if (operadoresDaObra.length === 0) {
+      setError('A obra selecionada nao possui equipe vinculada. Cadastre a equipe na obra antes de lancar a nota.');
+      return;
+    }
+    if (operadoresPresentes.length === 0) { setError('Selecione ao menos um colaborador presente.'); return; }
     if (!editingDoc && obraId && !obrasDisponiveis.some(o => o.id === obraId)) {
       setError('Esta obra foi concluída e está arquivada para novos lançamentos.');
       return;
@@ -528,6 +541,7 @@ function FiscalModal({
           thumbnailSizeBytes: editingDoc?.thumbnailSizeBytes || 0,
         };
       const obraSel = obras.find(o => o.id === obraId);
+      const dataHoraIso = new Date(`${data}T${hora}:00`).toISOString();
       const presentes = operadores
         .filter(o => operadoresPresentes.includes(o.id))
         .map(o => ({ id: o.id, nome: `${o.nome} ${o.sobrenome || ''}`.trim() }));
@@ -537,7 +551,8 @@ function FiscalModal({
           tipo,
           ...fotoPayload,
           valor: valorNum,
-          data: data ? new Date(`${data}T12:00:00`).toISOString() : serverTimestamp(),
+          data: dataHoraIso,
+          hora,
           fornecedor: fornecedor.trim(),
           cartaoFinal: cartaoFinal.replace(/\D/g, '').slice(-4),
           observacoes: observacoes.trim(),
@@ -562,7 +577,8 @@ function FiscalModal({
         tipo,
         ...fotoPayload,
         valor: valorNum,
-        data: data ? new Date(`${data}T12:00:00`).toISOString() : serverTimestamp(),
+        data: dataHoraIso,
+        hora,
         fornecedor: fornecedor.trim(),
         cartaoFinal: cartaoFinal.replace(/\D/g, '').slice(-4),
         observacoes: observacoes.trim(),
@@ -644,7 +660,7 @@ function FiscalModal({
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">Valor</label>
               <CurrencyInput value={valor} onChange={setValor} required
@@ -654,6 +670,19 @@ function FiscalModal({
               <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">Data</label>
               <input type="date" required className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:border-zinc-900"
                 value={data} onChange={e => setData(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">Hora</label>
+              <div className="relative">
+                <Clock className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="time"
+                  required
+                  className="w-full pl-9 pr-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:border-zinc-900"
+                  value={hora}
+                  onChange={e => setHora(e.target.value)}
+                />
+              </div>
             </div>
           </div>
 
