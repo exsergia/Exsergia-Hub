@@ -37,42 +37,99 @@ const normalize = (value?: string) =>
     .toUpperCase()
     .trim();
 
-const fiscalDate = (value: any) => {
-  const parsed = parseDate(value) || new Date();
-  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+/**
+ * Converte o valor recebido em uma data sem considerar horário.
+ *
+ * A função retorna somente uma string no formato dd/MM/yyyy.
+ * Nenhum objeto Date é enviado para a planilha.
+ */
+const fiscalDateOnly = (value: unknown): string => {
+  const parsedDate = parseDate(value) || new Date();
+
+  return format(
+    new Date(
+      parsedDate.getFullYear(),
+      parsedDate.getMonth(),
+      parsedDate.getDate()
+    ),
+    'dd/MM/yyyy'
+  );
 };
 
-const fiscalDateOnly = (value: any) => format(fiscalDate(value), 'dd/MM/yyyy');
+/**
+ * Retorna a data sem barras para ser usada como referência de pagamento.
+ *
+ * Exemplo:
+ * 31/07/2026 → 31072026
+ */
+const fiscalPaymentReference = (value: unknown): string => {
+  const parsedDate = parseDate(value) || new Date();
+
+  return format(
+    new Date(
+      parsedDate.getFullYear(),
+      parsedDate.getMonth(),
+      parsedDate.getDate()
+    ),
+    'ddMMyyyy'
+  );
+};
 
 const fiscalProduct = (despesa?: string) => {
   const value = normalize(despesa);
-  if (['ALMOCO', 'JANTAR', 'JANTA', 'CAFE'].includes(value)) return 'ALIMENTAÇÃO';
-  if (value === 'ESTACIONAMENTO') return 'ESTACIONAMENTO';
-  if (value === 'HOSPEDAGEM') return 'HOSPEDAGEM';
-  if (value === 'MATERIAL') return 'INSUMO PADRÃO';
+
+  if (['ALMOCO', 'JANTAR', 'JANTA', 'CAFE'].includes(value)) {
+    return 'ALIMENTAÇÃO';
+  }
+
+  if (value === 'ESTACIONAMENTO') {
+    return 'ESTACIONAMENTO';
+  }
+
+  if (value === 'HOSPEDAGEM') {
+    return 'HOSPEDAGEM';
+  }
+
+  if (value === 'MATERIAL') {
+    return 'INSUMO PADRÃO';
+  }
+
   return value || 'DESPESA';
 };
 
 const firstPartnerName = (doc: FiscalDoc) =>
   doc.criadoPorNome ||
-  doc.operadoresPresentes?.find(op => op.nome)?.nome ||
+  doc.operadoresPresentes?.find(operador => operador.nome)?.nome ||
   'PARCEIRO NÃO INFORMADO';
 
-export function buildFiscalInvoiceRows(fiscalDocs: FiscalDoc[], obras: Obra[]) {
+export function buildFiscalInvoiceRows(
+  fiscalDocs: FiscalDoc[],
+  obras: Obra[]
+) {
   return fiscalDocs.map(doc => {
-    const date = fiscalDate(doc.data);
     const dateOnly = fiscalDateOnly(doc.data);
+    const paymentReference = fiscalPaymentReference(doc.data);
+
     const partnerName = normalize(firstPartnerName(doc));
     const despesa = normalize(doc.fornecedor);
-    const obraNome = doc.obraNome || obras.find(o => o.id === doc.obraId)?.nome || '';
-    const termos = normalize([
-      despesa || doc.tipo,
-      doc.observacoes,
-      obraNome,
-    ].filter(Boolean).join(' - '));
+
+    const obraNome =
+      doc.obraNome ||
+      obras.find(obra => obra.id === doc.obraId)?.nome ||
+      '';
+
+    const termos = normalize(
+      [
+        despesa || doc.tipo,
+        doc.observacoes,
+        obraNome,
+      ]
+        .filter(Boolean)
+        .join(' - ')
+    );
 
     return {
-      [fiscalInvoiceHeaders[0]]: format(date, 'dMMyyyy'),
+      [fiscalInvoiceHeaders[0]]: paymentReference,
       [fiscalInvoiceHeaders[1]]: partnerName,
       [fiscalInvoiceHeaders[2]]: dateOnly,
       [fiscalInvoiceHeaders[3]]: dateOnly,
@@ -80,7 +137,9 @@ export function buildFiscalInvoiceRows(fiscalDocs: FiscalDoc[], obras: Obra[]) {
       [fiscalInvoiceHeaders[5]]: termos || 'SEM DESCRIÇÃO',
       [fiscalInvoiceHeaders[6]]: obraNome || 'SEM PROJETO',
       [fiscalInvoiceHeaders[7]]: fiscalProduct(doc.fornecedor),
-      [fiscalInvoiceHeaders[8]]: doc.cartaoFinal ? `Cartão final ${doc.cartaoFinal}` : 'SEM CONTA',
+      [fiscalInvoiceHeaders[8]]: doc.cartaoFinal
+        ? `Cartão final ${doc.cartaoFinal}`
+        : 'SEM CONTA',
       [fiscalInvoiceHeaders[9]]: 1,
       [fiscalInvoiceHeaders[10]]: Number(doc.valor || 0),
     };
@@ -89,19 +148,53 @@ export function buildFiscalInvoiceRows(fiscalDocs: FiscalDoc[], obras: Obra[]) {
 
 export function applyFiscalInvoiceSheetLayout(sheet: any) {
   sheet['!cols'] = fiscalInvoiceColumnWidths;
-  const range = sheet['!ref'];
-  if (!range) return;
 
+  const range = sheet['!ref'];
+
+  if (!range) {
+    return;
+  }
+
+  /**
+   * As colunas C e D são configuradas explicitamente como texto.
+   * Isso impede que Excel ou LibreOffice adicionem horário às datas.
+   */
   const dateColumns = ['C', 'D'];
+
   for (const column of dateColumns) {
     for (let row = 2; ; row += 1) {
-      const cell = sheet[`${column}${row}`];
-      if (!cell) break;
-      const value = String(cell.v || cell.w || '');
+      const cellReference = `${column}${row}`;
+      const cell = sheet[cellReference];
+
+      if (!cell) {
+        break;
+      }
+
+      const value = String(cell.v ?? cell.w ?? '');
+
       cell.t = 's';
       cell.v = value;
       cell.z = '@';
+
       delete cell.w;
     }
+  }
+
+  /**
+   * A referência de pagamento também é tratada como texto,
+   * evitando conversões automáticas do Excel.
+   */
+  for (let row = 2; ; row += 1) {
+    const cell = sheet[`A${row}`];
+
+    if (!cell) {
+      break;
+    }
+
+    cell.t = 's';
+    cell.v = String(cell.v ?? cell.w ?? '');
+    cell.z = '@';
+
+    delete cell.w;
   }
 }
