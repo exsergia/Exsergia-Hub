@@ -1217,6 +1217,10 @@ function Layout({ children }: { children: React.ReactNode }) {
   const canFiscal = !!user;
   const canReports = isAdmin || canAccessReportsByEmail(userProfile?.email || user?.email || '');
 
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
   const menuItems: {
     label: string; icon: any; path: string;
     adminOnly?: boolean; soAdmin?: boolean; fiscalOnly?: boolean;
@@ -1245,7 +1249,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   });
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
+    <div className="flex h-[100dvh] min-h-[100svh] bg-slate-50 overflow-hidden font-sans">
       {/* Introdutório por página (abre na 1ª visita + botão "?" pra reabrir) */}
       <PageIntro />
       {/* Mobile Sidebar Overlay */}
@@ -1256,23 +1260,31 @@ function Layout({ children }: { children: React.ReactNode }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setSidebarOpen(false)}
-            className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm"
+            className="fixed inset-0 bg-black/50 z-[70] lg:hidden backdrop-blur-sm"
           />
         )}
       </AnimatePresence>
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 w-56 bg-slate-900 border-r border-slate-800 flex flex-col transform transition-transform duration-300 lg:relative lg:translate-x-0 shadow-2xl lg:shadow-none",
+        "fixed inset-y-0 left-0 z-[80] w-64 max-w-[86vw] bg-slate-900 border-r border-slate-800 flex flex-col transform transition-transform duration-300 lg:relative lg:z-auto lg:w-56 lg:max-w-none lg:translate-x-0 shadow-2xl lg:shadow-none",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="h-12 flex items-center px-4 border-b border-slate-800">
+        <div className="h-12 flex items-center justify-between gap-3 px-4 border-b border-slate-800">
           <div className="flex items-center gap-2 font-bold tracking-tighter text-white">
             <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center">
               <HardHat className="text-white w-3.5 h-3.5" />
             </div>
             EXSERGIA HUB
           </div>
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden p-2 -mr-2 rounded-lg text-slate-400 active:bg-slate-800"
+            aria-label="Fechar módulos"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto">
@@ -1335,11 +1347,18 @@ function Layout({ children }: { children: React.ReactNode }) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         {/* Header */}
-        <header className="h-12 flex items-center justify-between px-6 bg-white border-b border-slate-200 shrink-0 shadow-sm z-10">
+        <header className="h-12 flex items-center justify-between px-4 sm:px-6 bg-white border-b border-slate-200 shrink-0 shadow-sm z-[60]">
           <div className="flex items-center gap-4">
             <button 
+              type="button"
               onClick={() => setSidebarOpen(true)}
-              className="p-1 -ml-1 lg:hidden text-slate-600 hover:bg-slate-100 rounded"
+              onTouchEnd={(event) => {
+                event.preventDefault();
+                setSidebarOpen(true);
+              }}
+              className="relative z-[65] p-2 -ml-2 lg:hidden text-slate-700 active:bg-slate-100 rounded-lg touch-manipulation"
+              aria-label="Abrir módulos"
+              aria-expanded={sidebarOpen}
             >
               <Menu className="w-5 h-5" />
             </button>

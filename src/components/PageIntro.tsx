@@ -104,6 +104,7 @@ export function PageIntro() {
   // Abre automaticamente apenas na 1ª visita de cada página.
   useEffect(() => {
     if (!steps || steps.length === 0) { setActive(false); return; }
+    if (window.matchMedia('(max-width: 767px)').matches) { setActive(false); return; }
     let seen = false;
     try { seen = localStorage.getItem(`tour-seen-${TOUR_VERSION}:${pathname}`) === '1'; } catch {}
     setIdx(0);

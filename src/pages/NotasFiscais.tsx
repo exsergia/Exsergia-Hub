@@ -438,6 +438,7 @@ function FiscalModal({
   const [obraId, setObraIdState] = useState(editingDoc?.obraId || draft.obraId);
   const [obraPickerOpen, setObraPickerOpen] = useState(false);
   const [obraSearch, setObraSearch] = useState('');
+  const [obraPickerViewport, setObraPickerViewport] = useState<{ height: number; offsetTop: number } | null>(null);
   const [operadoresPresentes, setOperadoresPresentesState] = useState<string[]>(editingDoc ? (editingDoc.operadoresPresentes || []).map(op => op.id) : draft.operadoresPresentes);
   const existingHasPhoto = Boolean(editingDoc?.fotoPath || editingDoc?.fotoUrl);
   const [fotoFile, setFotoFile] = useState<File | null>(() => existingHasPhoto ? new File([], 'existing-fiscal-photo') : null);
@@ -462,6 +463,32 @@ function FiscalModal({
       cancelled = true;
     };
   }, [editingDoc?.fotoPath]);
+
+  useEffect(() => {
+    if (!obraPickerOpen) {
+      setObraPickerViewport(null);
+      return;
+    }
+
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    const updateViewport = () => {
+      setObraPickerViewport({
+        height: viewport.height,
+        offsetTop: viewport.offsetTop,
+      });
+    };
+
+    updateViewport();
+    viewport.addEventListener('resize', updateViewport);
+    viewport.addEventListener('scroll', updateViewport);
+
+    return () => {
+      viewport.removeEventListener('resize', updateViewport);
+      viewport.removeEventListener('scroll', updateViewport);
+    };
+  }, [obraPickerOpen]);
 
   const saveDraft = (patch: Partial<FiscalDraft>) => {
     if (!editingDoc) setDraft(prev => ({ ...prev, ...patch }));
@@ -806,8 +833,19 @@ function FiscalModal({
       )}
 
       {obraPickerOpen && (
-        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-zinc-950/55 backdrop-blur-sm p-0 sm:p-4">
-          <div className="w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[84dvh] flex flex-col overflow-hidden">
+        <div
+          className="fixed inset-x-0 bottom-0 z-[60] flex items-end sm:items-center justify-center bg-zinc-950/55 backdrop-blur-sm p-0 sm:p-4"
+          style={obraPickerViewport ? {
+            top: obraPickerViewport.offsetTop,
+            height: obraPickerViewport.height,
+          } : { top: 0 }}
+        >
+          <div
+            className="w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[84dvh] flex flex-col overflow-hidden"
+            style={obraPickerViewport ? {
+              maxHeight: Math.max(280, obraPickerViewport.height - 16),
+            } : undefined}
+          >
             <div className="p-5 border-b border-zinc-100 space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
