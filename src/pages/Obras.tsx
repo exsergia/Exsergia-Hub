@@ -725,6 +725,48 @@ function ObraDetails({
     [todosOperadores, teamCategoryFilter]
   );
 
+  const allFilteredAssigned = operadoresFiltrados.length > 0 && operadoresFiltrados.every(op => idsLocal.includes(op.id));
+
+  const handleAssignFilteredOperators = async () => {
+    if (!isAdmin) {
+      notify('warning', 'Acesso restrito', 'Somente administradores podem alterar a equipe da obra.');
+      return;
+    }
+    if (operadoresFiltrados.length === 0) {
+      notify('warning', 'Sem operadores', 'Nao ha operadores nesta categoria para selecionar.');
+      return;
+    }
+    if (allFilteredAssigned) {
+      notify('info', 'Equipe ja selecionada', 'Todos os operadores desta categoria ja estao na obra.');
+      return;
+    }
+
+    const prevEquipe = equipeLocal;
+    const prevIds = idsLocal;
+    const existingIds = new Set(idsLocal);
+    const newIds = [...idsLocal];
+    const newEquipe = [...equipeLocal];
+
+    operadoresFiltrados.forEach(op => {
+      if (existingIds.has(op.id)) return;
+      existingIds.add(op.id);
+      newIds.push(op.id);
+      newEquipe.push({ operatorId: op.id, nivel: op.funcao || 'Operador' });
+    });
+
+    setEquipeLocal(newEquipe);
+    setIdsLocal(newIds);
+
+    try {
+      await updateDoc(doc(db, 'obras', obra.id), { equipe: newEquipe, operadoresIds: newIds });
+      notify('success', 'Equipe atualizada', 'Operadores da categoria selecionados para esta obra.');
+    } catch (err) {
+      setEquipeLocal(prevEquipe);
+      setIdsLocal(prevIds);
+      handleFirestoreError(err, OperationType.WRITE, 'obras-operators-bulk');
+    }
+  };
+
   const handleToggleOperator = async (opId: string) => {
     if (!isAdmin) {
       notify('warning', 'Acesso restrito', 'Somente administradores podem alterar a equipe da obra.');
@@ -976,7 +1018,8 @@ function ObraDetails({
             <p className="text-zinc-500 text-sm">Selecione os operadores que fazem parte da equipe principal desta obra.</p>
           </div>
 
-          <div className="max-w-sm space-y-2">
+          <div className="grid sm:grid-cols-[minmax(0,24rem)_auto] gap-3 items-end">
+            <div className="space-y-2">
             <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">Categoria da equipe</label>
             <div className="relative">
               <select
@@ -996,6 +1039,25 @@ function ObraDetails({
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
             </div>
+            </div>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={handleAssignFilteredOperators}
+                disabled={operadoresFiltrados.length === 0 || allFilteredAssigned}
+                className={cn(
+                  "h-[42px] px-4 rounded-xl text-xs font-bold uppercase tracking-widest transition-all border flex items-center justify-center gap-2",
+                  allFilteredAssigned
+                    ? "bg-green-50 text-green-700 border-green-200 cursor-default"
+                    : operadoresFiltrados.length === 0
+                      ? "bg-zinc-100 text-zinc-400 border-zinc-200 cursor-not-allowed"
+                      : "bg-zinc-900 text-white border-zinc-900 hover:bg-zinc-800 shadow-sm"
+                )}
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                {allFilteredAssigned ? 'Categoria selecionada' : 'Selecionar categoria'}
+              </button>
+            )}
           </div>
 
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
