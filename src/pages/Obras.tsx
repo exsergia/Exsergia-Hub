@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { usePersistedTab } from '../hooks/usePersistedTab';
 import { useCollection } from '../lib/supabaseHooks';
 import { collection, addDoc, serverTimestamp, updateDoc, doc, deleteDoc, setDoc, query, where } from '../lib/supabaseDb';
@@ -39,6 +39,41 @@ const OBRA_DRAFT_INITIAL: Partial<Obra> = {
   centroCusto: '',
   status: 'Ativa',
 };
+
+const TEAM_CATEGORY_OPTIONS = ['Todas', 'Eletrica', 'Hidraulica', 'Manutencao', 'Locacao', 'Outros'];
+
+const TEAM_CATEGORY_MATCHERS: Record<string, string[]> = {
+  Eletrica: ['eletric', 'eletrot', 'eletromec', 'spda', 'aterramento'],
+  Hidraulica: ['hidraul', 'encanador', 'bombeiro'],
+  Manutencao: ['manutenc', 'mecanic', 'tecnico', 'auxiliar', 'preventiv', 'corretiv'],
+  Locacao: ['motorista', 'condutor'],
+};
+
+function normalizeSearch(value?: string) {
+  return (value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s]/g, ' ')
+    .toLowerCase()
+    .trim();
+}
+
+function getTeamCategoryFromCostCenter(centroCusto?: string) {
+  const normalized = normalizeSearch(centroCusto);
+  if (normalized.includes('eletric')) return 'Eletrica';
+  if (normalized.includes('hidraul')) return 'Hidraulica';
+  if (normalized.includes('manutenc')) return 'Manutencao';
+  if (normalized.includes('loca')) return 'Locacao';
+  if (normalized.includes('outro')) return 'Outros';
+  return 'Todas';
+}
+
+function operatorMatchesTeamCategory(op: Operator, category: string) {
+  if (category === 'Todas' || category === 'Outros') return true;
+  const keywords = TEAM_CATEGORY_MATCHERS[category] || [];
+  const funcao = normalizeSearch(op.funcao || '');
+  return keywords.some(keyword => funcao.includes(keyword));
+}
 
 export default function Obras() {
   const { isAdmin, notify } = useAuth();
@@ -666,6 +701,7 @@ function ObraDetails({
   // Estado local otimista para equipe — UI responde na hora sem esperar Realtime
   const [equipeLocal, setEquipeLocal] = useState(obra.equipe || []);
   const [idsLocal, setIdsLocal] = useState(obra.operadoresIds || []);
+  const [teamCategoryFilter, setTeamCategoryFilter] = useState(() => getTeamCategoryFromCostCenter(obra.centroCusto));
   const [rolesLocal, setRolesLocal] = useState<Record<string, 'admin' | 'operator'>>(() => {
     const r: Record<string, 'admin' | 'operator'> = {};
     todosOperadores.forEach(op => { r[op.id] = (op.role as any) || 'operator'; });
@@ -675,13 +711,19 @@ function ObraDetails({
   useEffect(() => {
     setEquipeLocal(obra.equipe || []);
     setIdsLocal(obra.operadoresIds || []);
-  }, [obra.equipe, obra.operadoresIds]);
+    setTeamCategoryFilter(getTeamCategoryFromCostCenter(obra.centroCusto));
+  }, [obra.equipe, obra.operadoresIds, obra.centroCusto]);
 
   useEffect(() => {
     const r: Record<string, 'admin' | 'operator'> = {};
     todosOperadores.forEach(op => { r[op.id] = (op.role as any) || 'operator'; });
     setRolesLocal(r);
   }, [operadoresSnap]);
+
+  const operadoresFiltrados = useMemo(
+    () => todosOperadores.filter(op => operatorMatchesTeamCategory(op, teamCategoryFilter)),
+    [todosOperadores, teamCategoryFilter]
+  );
 
   const handleToggleOperator = async (opId: string) => {
     if (!isAdmin) {
@@ -934,8 +976,30 @@ function ObraDetails({
             <p className="text-zinc-500 text-sm">Selecione os operadores que fazem parte da equipe principal desta obra.</p>
           </div>
 
+          <div className="max-w-sm space-y-2">
+            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">Categoria da equipe</label>
+            <div className="relative">
+              <select
+                value={teamCategoryFilter}
+                onChange={(e) => setTeamCategoryFilter(e.target.value)}
+                className="w-full px-4 py-2.5 pr-10 bg-white border border-zinc-200 rounded-xl text-sm font-semibold text-zinc-700 appearance-none focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
+              >
+                {TEAM_CATEGORY_OPTIONS.map(category => (
+                  <option key={category} value={category}>
+                    {category === 'Eletrica' ? 'Elétrica' :
+                      category === 'Hidraulica' ? 'Hidráulica' :
+                      category === 'Manutencao' ? 'Manutenção' :
+                      category === 'Locacao' ? 'Locação' :
+                      category}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+            </div>
+          </div>
+
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {todosOperadores.map(op => {
+            {operadoresFiltrados.map(op => {
               const equipeEntry = equipeLocal.find(e => e.operatorId === op.id);
               const isAssigned = idsLocal.includes(op.id);
               const isAdmin_op = rolesLocal[op.id] === 'admin';
@@ -1011,6 +1075,13 @@ function ObraDetails({
                 </div>
               );
             })}
+            {operadoresFiltrados.length === 0 && (
+              <div className="col-span-full py-14 text-center bg-white rounded-2xl border border-dashed border-zinc-200">
+                <Users className="w-10 h-10 text-zinc-200 mx-auto mb-3" />
+                <p className="text-zinc-500 text-sm font-bold">Nenhum operador nesta categoria.</p>
+                <p className="text-zinc-400 text-xs mt-1">Confira a funcao cadastrada em Operadores ou altere o filtro de categoria.</p>
+              </div>
+            )}
           </div>
         </div>
       )}
