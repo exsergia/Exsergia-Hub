@@ -530,8 +530,10 @@ function FiscalModal({
     if (!fotoFile) { setError('A foto do documento é obrigatória.'); return; }
     if (editingDoc && !isAdmin) { setError('Somente administradores podem editar lançamentos fiscais.'); return; }
     const valorNum = typeof valor === 'number' ? valor : NaN;
+    const cartaoFinalLimpo = cartaoFinal.replace(/\D/g, '').slice(-4);
     if (!Number.isFinite(valorNum) || valorNum <= 0) { setError('Informe um valor válido.'); return; }
     if (!data) { setError('Informe a data do documento fiscal.'); return; }
+    if (cartaoFinalLimpo.length !== 4) { setError('Informe os 4 ultimos digitos do cartao.'); return; }
     if (!obraId) { setError('Selecione a obra vinculada ao lancamento fiscal.'); return; }
     if (operadoresDaObra.length === 0) {
       setError('A obra selecionada nao possui equipe vinculada. Cadastre a equipe na obra antes de lancar a nota.');
@@ -578,7 +580,7 @@ function FiscalModal({
           data: dataFiscalIso,
           hora: '',
           fornecedor: fornecedor.trim(),
-          cartaoFinal: cartaoFinal.replace(/\D/g, '').slice(-4),
+          cartaoFinal: cartaoFinalLimpo,
           observacoes: observacoes.trim(),
           obraId: obraId || '',
           obraNome: obraSel?.nome || '',
@@ -604,7 +606,7 @@ function FiscalModal({
         data: dataFiscalIso,
         hora: '',
         fornecedor: fornecedor.trim(),
-        cartaoFinal: cartaoFinal.replace(/\D/g, '').slice(-4),
+        cartaoFinal: cartaoFinalLimpo,
         observacoes: observacoes.trim(),
         obraId: obraId || '',
         obraNome: obraSel?.nome || '',
@@ -716,7 +718,7 @@ function FiscalModal({
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">Cartão (4 últimos)</label>
-              <input type="text" inputMode="numeric" maxLength={4}
+              <input type="text" inputMode="numeric" maxLength={4} minLength={4} pattern="\d{4}" required autoComplete="cc-number"
                 className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm font-mono tracking-widest focus:outline-none focus:border-zinc-900"
                 placeholder="1234" value={cartaoFinal}
                 onChange={e => setCartaoFinal(e.target.value.replace(/\D/g, '').slice(0, 4))} />
