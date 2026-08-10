@@ -17,7 +17,7 @@ import {
   ChevronRight,
   ExternalLink,
   Users,
-  Box,
+  Box,  
   Activity,
   Image as ImageIcon,
   Copy,
@@ -144,7 +144,8 @@ export default function Relatorios() {
   const [fiscalSnap, , fiscalError] = useCollection(query(collection(db, 'fiscal_docs'), orderBy('data', 'desc')));
 
   const [search, setSearch] = useState('');
-  const [selectedDate, setSelectedDate] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [toolCategoryFilter, setToolCategoryFilter] = useState('Todas');
   const [toolStatusFilter, setToolStatusFilter] = useState('Todos');
   const [toolLocationFilter, setToolLocationFilter] = useState('Todos');
@@ -164,6 +165,16 @@ export default function Relatorios() {
   const fiscalDocs = (fiscalSnap?.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FiscalDoc[]) || [];
   const loadError = checklistsError || obrasError || materiaisError || atividadesError || operadoresError || toolsError || toolLogsError || vehiclesError || vehicleLogsError || progressoDiarioError || fiscalError;
   const [fiscalThumbUrls, setFiscalThumbUrls] = useState<Record<string, string>>({});
+
+  const isDateInSelectedRange = (value: any) => {
+    if (!startDate && !endDate) return true;
+    const d = parseDate(value);
+    if (!d) return false;
+    const dateKey = format(d, 'yyyy-MM-dd');
+    if (startDate && dateKey < startDate) return false;
+    if (endDate && dateKey > endDate) return false;
+    return true;
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -279,10 +290,7 @@ export default function Relatorios() {
         (l.responsavelNome || '').toLowerCase().includes(q)
       )) return false;
     }
-    if (selectedDate) {
-      const d = parseDate(l.dataSaida);
-      if (format(d, 'yyyy-MM-dd') !== selectedDate) return false;
-    }
+    if (!isDateInSelectedRange(l.dataSaida)) return false;
     return true;
   });
 
@@ -312,10 +320,7 @@ export default function Relatorios() {
         (l.observacaoDevolucao || '').toLowerCase().includes(q)
       )) return false;
     }
-    if (selectedDate) {
-      const d = parseDate(l.dataSaida);
-      if (format(d, 'yyyy-MM-dd') !== selectedDate) return false;
-    }
+    if (!isDateInSelectedRange(l.dataSaida)) return false;
     return true;
   });
 
@@ -331,10 +336,7 @@ export default function Relatorios() {
         (f.operadoresPresentes || []).some(o => (o.nome || '').toLowerCase().includes(q))
       )) return false;
     }
-    if (selectedDate) {
-      const d = parseDate(f.data);
-      if (format(d, 'yyyy-MM-dd') !== selectedDate) return false;
-    }
+    if (!isDateInSelectedRange(f.data)) return false;
     return true;
   });
 
@@ -485,10 +487,7 @@ export default function Relatorios() {
         (c.nomeResponsavel || '').toLowerCase().includes(q)
       )) return false;
     }
-    if (selectedDate) {
-      const d = parseDate(c.data);
-      if (format(d, 'yyyy-MM-dd') !== selectedDate) return false;
-    }
+    if (!isDateInSelectedRange(c.data)) return false;
     return true;
   });
 
@@ -725,7 +724,8 @@ export default function Relatorios() {
             onClick={() => {
               setActiveTab(tab.id);
               setSearch('');
-              setSelectedDate('');
+              setStartDate('');
+              setEndDate('');
               setSelectedChecklist(null);
               setToolCategoryFilter('Todas');
               setToolStatusFilter('Todos');
@@ -781,22 +781,40 @@ export default function Relatorios() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 sm:flex-none">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
-            <input
-              type="date"
-              className="w-full sm:w-auto pl-9 pr-3 py-3 bg-white border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm transition-all cursor-pointer"
-              value={selectedDate}
-              max={format(new Date(), 'yyyy-MM-dd')}
-              onChange={(e) => setSelectedDate(e.target.value)}
-            />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <div className="flex-1 sm:flex-none space-y-1">
+            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">De</label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+              <input
+                type="date"
+                aria-label="Data inicial"
+                className="w-full sm:w-auto pl-9 pr-3 py-3 bg-white border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm transition-all cursor-pointer"
+                value={startDate}
+                max={endDate || undefined}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
           </div>
-          {selectedDate && (
+          <div className="flex-1 sm:flex-none space-y-1">
+            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">Até</label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+              <input
+                type="date"
+                aria-label="Data final"
+                className="w-full sm:w-auto pl-9 pr-3 py-3 bg-white border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm transition-all cursor-pointer"
+                value={endDate}
+                min={startDate || undefined}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
+          </div>
+          {(startDate || endDate) && (
             <button
-              onClick={() => setSelectedDate('')}
+              onClick={() => { setStartDate(''); setEndDate(''); }}
               className="p-3 bg-white border border-zinc-200 rounded-xl text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 shadow-sm transition-all"
-              title="Limpar filtro de data"
+              title="Limpar filtro de período"
             >
               <XIcon className="w-4 h-4" />
             </button>
@@ -817,7 +835,8 @@ export default function Relatorios() {
               type="button"
               onClick={() => {
                 setSearch('');
-                setSelectedDate('');
+                setStartDate('');
+                setEndDate('');
                 setToolCategoryFilter('Todas');
                 setToolStatusFilter('Todos');
                 setToolLocationFilter('Todos');

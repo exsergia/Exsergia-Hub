@@ -30,6 +30,11 @@ import { parseDate } from '../lib/dateUtils';
 import { getLocalDateKey } from '../lib/progress';
 
 const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Administrador',
+  encarregado: 'Encarregado',
+  operator: 'Operador',
+};
 
 function inicioDaSemanaAtual() {
   const hoje = new Date();
@@ -210,7 +215,7 @@ export default function Dashboard() {
             {saudacaoPorHorario()}, {userProfile?.nome || user?.email?.split('@')[0] || 'Usuário'}
           </h2>
           <p className="text-zinc-500">
-            Você está logado como <span className="font-bold text-zinc-900 uppercase text-xs">{userProfile?.role || 'operador'}</span>.
+            Você está logado como <span className="font-bold text-zinc-900 uppercase text-xs">{ROLE_LABELS[userProfile?.role || ''] || 'Operador'}</span>.
           </p>
         </div>
         <div className="text-sm font-medium text-zinc-400 bg-zinc-100 px-3 py-1.5 rounded-lg border border-zinc-200 uppercase tracking-wider">
