@@ -98,6 +98,8 @@ export default function NotasFiscais() {
   const [search, setSearch] = useState('');
   const [obraFilter, setObraFilter] = useState('Todas');
   const [pessoaFilter, setPessoaFilter] = useState('Todas');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [fiscalThumbUrls, setFiscalThumbUrls] = useState<Record<string, string>>({});
 
   const docs = (docsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) as FiscalDoc[]) || [];
@@ -149,6 +151,16 @@ export default function NotasFiscais() {
     }, new Set<string>())
   ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
+  const isDateInSelectedRange = (value: any) => {
+    if (!startDate && !endDate) return true;
+    const d = parseDate(value);
+    if (!d || Number.isNaN(d.getTime())) return false;
+    const dateKey = format(d, 'yyyy-MM-dd');
+    if (startDate && dateKey < startDate) return false;
+    if (endDate && dateKey > endDate) return false;
+    return true;
+  };
+
   const filtered = docs.filter(d => {
     const q = search.toLowerCase();
     const obraKey = d.obraId || d.obraNome || '';
@@ -158,6 +170,7 @@ export default function NotasFiscais() {
     ];
     const matchesObra = obraFilter === 'Todas' || obraKey === obraFilter;
     const matchesPessoa = pessoaFilter === 'Todas' || pessoas.some(nome => nome === pessoaFilter);
+    const matchesDate = isDateInSelectedRange(d.data);
     const matchesSearch = !q || (
       (d.fornecedor || '').toLowerCase().includes(q) ||
       (d.observacoes || '').toLowerCase().includes(q) ||
@@ -169,6 +182,7 @@ export default function NotasFiscais() {
     return (
       matchesObra &&
       matchesPessoa &&
+      matchesDate &&
       matchesSearch
     );
   });
@@ -209,7 +223,7 @@ export default function NotasFiscais() {
       </div>
 
       {isAdmin ? (
-        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px_220px_auto] gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_170px_170px_220px_220px_auto] gap-3 items-end">
           <div data-tour="nf-search" className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
             <input
@@ -219,6 +233,34 @@ export default function NotasFiscais() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">De</label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+              <input
+                type="date"
+                aria-label="Data inicial"
+                className="w-full pl-9 pr-3 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm"
+                value={startDate}
+                max={endDate || undefined}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">Até</label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+              <input
+                type="date"
+                aria-label="Data final"
+                className="w-full pl-9 pr-3 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm"
+                value={endDate}
+                min={startDate || undefined}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
           </div>
           <div className="relative">
             <HardHat className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
@@ -264,7 +306,7 @@ export default function NotasFiscais() {
       )}
 
       {!isAdmin && (
-        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_170px_170px_auto] gap-3 items-end">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
             <input
@@ -274,6 +316,34 @@ export default function NotasFiscais() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">De</label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+              <input
+                type="date"
+                aria-label="Data inicial"
+                className="w-full pl-9 pr-3 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm"
+                value={startDate}
+                max={endDate || undefined}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">Até</label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+              <input
+                type="date"
+                aria-label="Data final"
+                className="w-full pl-9 pr-3 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm"
+                value={endDate}
+                min={startDate || undefined}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
           </div>
           <div className="flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-900 text-white rounded-xl shrink-0">
             <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Meu total</span>

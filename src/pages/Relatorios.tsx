@@ -169,7 +169,7 @@ export default function Relatorios() {
   const isDateInSelectedRange = (value: any) => {
     if (!startDate && !endDate) return true;
     const d = parseDate(value);
-    if (!d) return false;
+    if (!d || Number.isNaN(d.getTime())) return false;
     const dateKey = format(d, 'yyyy-MM-dd');
     if (startDate && dateKey < startDate) return false;
     if (endDate && dateKey > endDate) return false;
@@ -762,7 +762,7 @@ export default function Relatorios() {
       )}
 
       {/* Search + Date filter (hidden on BI tab) */}
-      {activeTab !== 'bi' && <div className="flex flex-col sm:flex-row gap-3">
+      {activeTab !== 'bi' && <div className="flex flex-col sm:flex-row sm:items-end gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
           <input
