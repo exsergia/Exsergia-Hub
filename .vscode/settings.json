@@ -1,4 +1,9 @@
 {
+  "deno.enablePaths": [
+    "./supabase/functions"
+  ],
+  "deno.config": "./supabase/functions/deno.json",
+  "deno.lint": true,
   "typescript.tsdk": "node_modules/typescript/lib",
   "typescript.enablePromptUseWorkspaceTsdk": true
 }

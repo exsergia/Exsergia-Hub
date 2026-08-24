@@ -371,6 +371,7 @@ export default function NotasFiscais() {
             const downloadName = `${sanitizeFileName(`${d.tipo}-${d.fornecedor || d.obraNome || d.id}-${dt ? format(dt, 'yyyy-MM-dd') : 'sem-data'}`)}.jpg`;
             const previewUrl = d.thumbnailPath || d.fotoPath ? fiscalThumbUrls[d.id] : d.fotoUrl;
             const hasImage = Boolean(d.fotoPath || d.fotoUrl);
+            const canEdit = isAdmin || Boolean(currentUserId && d.criadoPorId === currentUserId);
             return (
               <div key={d.id} className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden group">
                 <div className="relative aspect-video bg-zinc-100">
@@ -422,20 +423,20 @@ export default function NotasFiscais() {
                   <div className="flex items-center justify-between pt-1 gap-2">
                     <span className="text-[10px] text-zinc-400 flex items-center gap-1 truncate"><User className="w-3 h-3" />{d.criadoPorNome || '—'}</span>
                     <div className="flex items-center gap-1 shrink-0">
+                      {isAdmin && hasImage && (
+                        <button onClick={() => downloadFiscalDocumentImage(d, downloadName)} className="p-1.5 text-zinc-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Baixar imagem">
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {canEdit && (
+                        <button onClick={() => setEditingDoc(d)} className="p-1.5 text-zinc-300 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Editar">
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       {isAdmin && (
-                        <>
-                          {hasImage && (
-                            <button onClick={() => downloadFiscalDocumentImage(d, downloadName)} className="p-1.5 text-zinc-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Baixar imagem">
-                              <Download className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          <button onClick={() => setEditingDoc(d)} className="p-1.5 text-zinc-300 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors" title="Editar">
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => handleDelete(d)} className="p-1.5 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </>
+                        <button onClick={() => handleDelete(d)} className="p-1.5 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Excluir">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       )}
                     </div>
                   </div>
@@ -598,7 +599,10 @@ function FiscalModal({
     e.preventDefault();
     if (loading) return;
     if (!fotoFile) { setError('A foto do documento é obrigatória.'); return; }
-    if (editingDoc && !isAdmin) { setError('Somente administradores podem editar lançamentos fiscais.'); return; }
+    if (editingDoc && !isAdmin && editingDoc.criadoPorId !== userId) {
+      setError('Voce so pode editar os lancamentos fiscais que criou.');
+      return;
+    }
     const valorNum = typeof valor === 'number' ? valor : NaN;
     const cartaoFinalLimpo = cartaoFinal.replace(/\D/g, '').slice(-4);
     if (!Number.isFinite(valorNum) || valorNum <= 0) { setError('Informe um valor válido.'); return; }
@@ -1021,4 +1025,3 @@ function FiscalLoadError({ title, message }: { title: string; message?: string }
     </div>
   );
 }
-

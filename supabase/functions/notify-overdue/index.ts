@@ -16,6 +16,26 @@ import webpush from 'npm:web-push@3.6.7';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
 
+type JsonRecord = Record<string, unknown>;
+type PushKeys = { p256dh: string; auth: string };
+type PushSubscription = { id: string; endpoint: string; keys: PushKeys };
+
+function asRecord(value: unknown): JsonRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as JsonRecord
+    : {};
+}
+
+function unwrapRow(value: unknown): JsonRecord {
+  const row = asRecord(value);
+  return { id: row.id, ...asRecord(row.data) };
+}
+
+function errorStatusCode(error: unknown) {
+  const statusCode = asRecord(error).statusCode;
+  return typeof statusCode === 'number' ? statusCode : null;
+}
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const VAPID_PUBLIC = Deno.env.get('VAPID_PUBLIC_KEY')!;
@@ -91,24 +111,32 @@ Deno.serve(async (req) => {
   if (logErr) return new Response(JSON.stringify({ error: logErr.message }), { status: 500 });
 
   const overdue = (logRows || [])
-    .map((r: any) => ({ id: r.id, ...(r.data || {}) }))
-    .filter((l: any) => l.statusLog === 'Aberta' && l.previsaoDevolucao && new Date(l.previsaoDevolucao).getTime() < now);
+    .map(unwrapRow)
+    .filter((log) =>
+      log.statusLog === 'Aberta' &&
+      typeof log.previsaoDevolucao === 'string' &&
+      new Date(log.previsaoDevolucao).getTime() < now
+    );
 
   if (overdue.length === 0) {
     return Response.json({ overdue: 0, sent: 0, emails: 0 });
   }
 
   const { data: toolRows } = await supabase.from('tools').select('*');
-  const tools: Record<string, any> = Object.fromEntries((toolRows || []).map((r: any) => [r.id, r.data || {}]));
+  const tools: Record<string, JsonRecord> = Object.fromEntries((toolRows || []).map((value: unknown) => {
+    const row = asRecord(value);
+    return [String(row.id || ''), asRecord(row.data)];
+  }));
 
   // Mapa de e-mails dos responsáveis (operadores.id == auth.uid).
   const { data: opRows } = await supabase.from('operadores').select('*');
   const emailById: Record<string, string> = {};
   const operatorIdByEmail: Record<string, string> = {};
   for (const r of opRows || []) {
-    const d = (r as any).data || {};
-    const id = (r as any).id;
-    const email = String(d.email || (r as any).email || '').trim().toLowerCase();
+    const row = asRecord(r);
+    const data = asRecord(row.data);
+    const id = String(row.id || '');
+    const email = String(data.email || row.email || '').trim().toLowerCase();
     if (email) {
       emailById[id] = email;
       operatorIdByEmail[email] = id;
@@ -117,11 +145,22 @@ Deno.serve(async (req) => {
   const overdueManagerId = operatorIdByEmail[OVERDUE_MANAGER_EMAIL] || '';
 
   const { data: subRows } = await supabase.from('push_subscriptions').select('*');
-  const subsByUser: Record<string, Array<{ id: string; endpoint: string; keys: any }>> = {};
+  const subsByUser: Record<string, PushSubscription[]> = {};
   for (const r of subRows || []) {
-    const d = (r as any).data || {};
-    if (!d.userId || !d.endpoint || !d.keys) continue;
-    (subsByUser[d.userId] ||= []).push({ id: (r as any).id, endpoint: d.endpoint, keys: d.keys });
+    const row = asRecord(r);
+    const data = asRecord(row.data);
+    const keys = asRecord(data.keys);
+    if (
+      typeof data.userId !== 'string' ||
+      typeof data.endpoint !== 'string' ||
+      typeof keys.p256dh !== 'string' ||
+      typeof keys.auth !== 'string'
+    ) continue;
+    (subsByUser[data.userId] ||= []).push({
+      id: String(row.id || ''),
+      endpoint: data.endpoint,
+      keys: { p256dh: keys.p256dh, auth: keys.auth },
+    });
   }
 
   // Agrupa atrasos por responsável (para 1 e-mail por pessoa).
@@ -129,15 +168,19 @@ Deno.serve(async (req) => {
 
   let sent = 0;
   for (const log of overdue) {
-    const toolName = tools[log.toolId]?.nome || 'Ferramenta';
+    const toolId = String(log.toolId || '');
+    const rawToolName = tools[toolId]?.nome;
+    const toolName = typeof rawToolName === 'string' && rawToolName ? rawToolName : 'Ferramenta';
 
     // Acumula para o e-mail agregado.
-    const uid = log.responsavelId;
+    const uid = String(log.responsavelId || '');
+    const responsavelEmail = typeof log.responsavelEmail === 'string' ? log.responsavelEmail : '';
+    const responsavelNome = typeof log.responsavelNome === 'string' ? log.responsavelNome : '';
     if (uid) {
-      (porUsuario[uid] ||= { email: emailById[uid] || log.responsavelEmail || '', nome: log.responsavelNome || '', tools: [] }).tools.push(toolName);
+      (porUsuario[uid] ||= { email: emailById[uid] || responsavelEmail, nome: responsavelNome, tools: [] }).tools.push(toolName);
     }
     if (overdueManagerId && overdueManagerId !== uid) {
-      const detalhe = log.responsavelNome ? `${toolName} - responsavel: ${log.responsavelNome}` : toolName;
+      const detalhe = responsavelNome ? `${toolName} - responsavel: ${responsavelNome}` : toolName;
       (porUsuario[overdueManagerId] ||= { email: emailById[overdueManagerId] || OVERDUE_MANAGER_EMAIL, nome: 'Erick', tools: [] }).tools.push(detalhe);
     }
 
@@ -153,8 +196,9 @@ Deno.serve(async (req) => {
       try {
         await webpush.sendNotification({ endpoint: s.endpoint, keys: s.keys }, payload);
         sent += 1;
-      } catch (err: any) {
-        if (err?.statusCode === 404 || err?.statusCode === 410) {
+      } catch (err: unknown) {
+        const statusCode = errorStatusCode(err);
+        if (statusCode === 404 || statusCode === 410) {
           await supabase.from('push_subscriptions').delete().eq('id', s.id);
         }
       }
@@ -164,7 +208,7 @@ Deno.serve(async (req) => {
       if (managerSubs.length === 0) continue;
       const adminPayload = JSON.stringify({
         title: 'Ferramenta em atraso',
-        body: `"${toolName}" esta atrasada${log.responsavelNome ? ` com ${log.responsavelNome}` : ''}.`,
+        body: `"${toolName}" esta atrasada${responsavelNome ? ` com ${responsavelNome}` : ''}.`,
         url: '/#/ferramentas',
         tag: `atraso-admin-${log.id}`,
       });
@@ -172,8 +216,9 @@ Deno.serve(async (req) => {
         try {
           await webpush.sendNotification({ endpoint: s.endpoint, keys: s.keys }, adminPayload);
           sent += 1;
-        } catch (err: any) {
-          if (err?.statusCode === 404 || err?.statusCode === 410) {
+        } catch (err: unknown) {
+          const statusCode = errorStatusCode(err);
+          if (statusCode === 404 || statusCode === 410) {
             await supabase.from('push_subscriptions').delete().eq('id', s.id);
           }
         }

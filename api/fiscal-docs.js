@@ -115,11 +115,6 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PATCH' || req.method === 'PUT') {
-    if (!admin) {
-      sendJson(res, 403, { ok: false, error: 'Somente administradores podem editar documentos fiscais.' });
-      return;
-    }
-
     try {
       const body = await readJsonBody(req);
       const id = String(body.id || url.searchParams.get('id') || '').trim();
@@ -141,6 +136,10 @@ export default async function handler(req, res) {
       }
 
       const current = unwrapRow(currentRow);
+      if (!admin && current.criadoPorId !== user.id) {
+        sendJson(res, 403, { ok: false, error: 'Voce so pode editar documentos fiscais que criou.' });
+        return;
+      }
       const payload = {
         ...current,
         ...body,

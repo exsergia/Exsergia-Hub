@@ -173,6 +173,28 @@ Ela retorna:
 
 O resultado é salvo em `fiscal_docs.data.aiAnalysis`.
 
+## Notificação de nova Nota Fiscal
+
+Quando um registro do tipo `NF` é inserido em `fiscal_docs`, o banco chama a Edge Function
+`supabase/functions/notify-fiscal-doc/index.ts`. Ela envia os dados do lançamento para
+`contasapagar@exsergia.eng.br`. Cupons fiscais não disparam esse aviso.
+
+Configure os secrets SMTP e publique a função:
+
+```bash
+supabase secrets set SMTP_HOST=... SMTP_PORT=465 SMTP_USER=... SMTP_PASS=... SMTP_FROM=...
+supabase secrets set CRON_SECRET=... FISCAL_NOTIFICATION_EMAIL=contasapagar@exsergia.eng.br
+supabase functions deploy notify-fiscal-doc --no-verify-jwt
+supabase db push
+```
+
+O banco precisa das mesmas configurações usadas pelo `notify-overdue`:
+
+```sql
+alter database postgres set app.settings.supabase_url = 'https://SEU-PROJETO.supabase.co';
+alter database postgres set app.settings.cron_secret = 'MESMO_VALOR_DO_SECRET_CRON_SECRET';
+```
+
 ## Deploy
 
 Antes de publicar:

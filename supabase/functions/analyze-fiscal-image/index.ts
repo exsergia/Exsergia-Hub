@@ -38,6 +38,25 @@ type FiscalAnalysis = {
   };
 };
 
+type FiscalUsage = {
+  tokenUsage: NonNullable<FiscalAnalysis['tokenUsage']>;
+  cost: NonNullable<FiscalAnalysis['cost']>;
+};
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function isFiscalStatus(value: unknown): value is FiscalAnalysis['status'] {
+  return value === 'aprovado' || value === 'revisar' || value === 'reprovado';
+}
+
+function isDocumentType(value: unknown): value is FiscalAnalysis['documentType'] {
+  return value === 'NF' || value === 'Cupom' || value === 'Outro' || value === 'Indefinido';
+}
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -54,10 +73,11 @@ function safePrice(value: number) {
   return Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
-function normalizeUsage(usage: any) {
-  const inputTokens = Number(usage?.input_tokens || 0);
-  const outputTokens = Number(usage?.output_tokens || 0);
-  const totalTokens = Number(usage?.total_tokens || inputTokens + outputTokens);
+function normalizeUsage(usage: unknown): FiscalUsage {
+  const value = asRecord(usage);
+  const inputTokens = Number(value.input_tokens || 0);
+  const outputTokens = Number(value.output_tokens || 0);
+  const totalTokens = Number(value.total_tokens || inputTokens + outputTokens);
   const hasUsage = inputTokens > 0 || outputTokens > 0 || totalTokens > 0;
   const inputUsd = hasUsage ? (inputTokens / 1_000_000) * safePrice(OPENAI_INPUT_USD_PER_1M_TOKENS) : null;
   const outputUsd = hasUsage ? (outputTokens / 1_000_000) * safePrice(OPENAI_OUTPUT_USD_PER_1M_TOKENS) : null;
@@ -77,41 +97,47 @@ function normalizeUsage(usage: any) {
   };
 }
 
-function normalizeAnalysis(input: any, usage?: any): FiscalAnalysis {
-  const status = ['aprovado', 'revisar', 'reprovado'].includes(input?.status) ? input.status : 'revisar';
-  const documentType = ['NF', 'Cupom', 'Outro', 'Indefinido'].includes(input?.documentType) ? input.documentType : 'Indefinido';
-  const extractedValue = Number.isFinite(Number(input?.extractedValue)) ? Number(input.extractedValue) : null;
-  const extractedDate = typeof input?.extractedDate === 'string' && input.extractedDate ? input.extractedDate : null;
-  const vendor = typeof input?.vendor === 'string' && input.vendor ? input.vendor.slice(0, 120) : null;
+function normalizeAnalysis(input: unknown, usage?: unknown): FiscalAnalysis {
+  const value = asRecord(input);
+  const status = isFiscalStatus(value.status) ? value.status : 'revisar';
+  const documentType = isDocumentType(value.documentType) ? value.documentType : 'Indefinido';
+  const extractedValue = Number.isFinite(Number(value.extractedValue)) ? Number(value.extractedValue) : null;
+  const extractedDate = typeof value.extractedDate === 'string' && value.extractedDate ? value.extractedDate : null;
+  const vendor = typeof value.vendor === 'string' && value.vendor ? value.vendor.slice(0, 120) : null;
 
   return {
     status,
-    confidence: safeNumber(input?.confidence),
+    confidence: safeNumber(value.confidence),
     documentType,
     extractedValue,
     extractedDate,
     vendor,
-    reasons: Array.isArray(input?.reasons) ? input.reasons.map(String).slice(0, 5) : ['Analise concluida com baixa estrutura.'],
-    warnings: Array.isArray(input?.warnings) ? input.warnings.map(String).slice(0, 5) : [],
-    rawTextSummary: typeof input?.rawTextSummary === 'string' ? input.rawTextSummary.slice(0, 500) : '',
+    reasons: Array.isArray(value.reasons) ? value.reasons.map(String).slice(0, 5) : ['Analise concluida com baixa estrutura.'],
+    warnings: Array.isArray(value.warnings) ? value.warnings.map(String).slice(0, 5) : [],
+    rawTextSummary: typeof value.rawTextSummary === 'string' ? value.rawTextSummary.slice(0, 500) : '',
     model: OPENAI_MODEL,
     analyzedAt: new Date().toISOString(),
     ...normalizeUsage(usage),
   };
 }
 
-function extractOutputText(result: any) {
-  if (typeof result?.output_text === 'string') return result.output_text;
+function extractOutputText(result: unknown) {
+  const value = asRecord(result);
+  if (typeof value.output_text === 'string') return value.output_text;
   const parts: string[] = [];
-  for (const item of result?.output || []) {
-    for (const content of item?.content || []) {
-      if (typeof content?.text === 'string') parts.push(content.text);
+  const output = Array.isArray(value.output) ? value.output : [];
+  for (const itemValue of output) {
+    const item = asRecord(itemValue);
+    const contentItems = Array.isArray(item.content) ? item.content : [];
+    for (const contentValue of contentItems) {
+      const content = asRecord(contentValue);
+      if (typeof content.text === 'string') parts.push(content.text);
     }
   }
   return parts.join('\n').trim();
 }
 
-function parseModelJson(text: string) {
+function parseModelJson(text: string): unknown {
   const clean = text
     .trim()
     .replace(/^```(?:json)?/i, '')
@@ -180,7 +206,7 @@ Deno.serve(async (req) => {
       return json(pending('OPENAI_API_KEY nao configurada nos secrets do Supabase.', 'Documento salvo sem analise automatica.'));
     }
 
-  const body = await req.json().catch(() => ({}));
+  const body = asRecord(await req.json().catch(() => ({})));
   const imageUrl = String(body.imageUrl || '');
   const imageDataUrl = String(body.imageDataUrl || '');
   let dataUrl = '';
@@ -270,9 +296,10 @@ Critérios:
     return json(pending('Falha na analise de IA.', openAiErrorMessage(detail)), 200);
   }
 
-    const result = await openaiResponse.json();
+    const result: unknown = await openaiResponse.json();
+    const resultData = asRecord(result);
     const outputText = extractOutputText(result);
-    let parsed: any = {};
+    let parsed: unknown = {};
     try {
       parsed = parseModelJson(outputText);
     } catch {
@@ -286,7 +313,7 @@ Critérios:
       };
     }
 
-    return json({ ...normalizeAnalysis(parsed, result?.usage), configured: true });
+    return json({ ...normalizeAnalysis(parsed, resultData.usage), configured: true });
   } catch (error) {
     console.error('Fiscal analysis unexpected error', error);
     return json(pending('Scanner da imagem nao conseguiu concluir a leitura.', error instanceof Error ? error.message : 'Erro inesperado na Edge Function.'), 200);

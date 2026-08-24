@@ -489,7 +489,17 @@ begin
   end if;
 
   if p_table = 'fiscal_docs' then
-    return p_action in ('insert', 'update');
+    if p_action = 'insert' then
+      return coalesce(p_value ->> 'criadoPorId', '') = auth.uid()::text;
+    elsif p_action = 'update' then
+      select data ->> 'criadoPorId'
+        into current_owner
+        from public.fiscal_docs
+        where id = p_record_id;
+      return current_owner = auth.uid()::text
+        and (not (p_value ? 'criadoPorId') or p_value ->> 'criadoPorId' = auth.uid()::text);
+    end if;
+    return false;
   end if;
 
   if p_table in ('tools', 'vehicles') then
@@ -646,8 +656,11 @@ create policy "admin all atividades" on public.atividades for all to authenticat
 create policy "admin all checklists" on public.checklists for all to authenticated using (public.is_app_admin()) with check (public.is_app_admin());
 create policy "admin all operadores" on public.operadores for all to authenticated using (public.is_app_admin()) with check (public.is_app_admin());
 create policy "admin all admin_access" on public.admin_access for all to authenticated using (public.is_app_admin()) with check (public.is_app_admin());
-create policy "fiscal docs insert auth" on public.fiscal_docs for insert to authenticated with check (true);
-create policy "fiscal docs update auth" on public.fiscal_docs for update to authenticated using (true) with check (true);
+create policy "fiscal docs insert auth" on public.fiscal_docs for insert to authenticated
+  with check (public.is_app_admin() or coalesce(data ->> 'criadoPorId', '') = auth.uid()::text);
+create policy "fiscal docs update own" on public.fiscal_docs for update to authenticated
+  using (public.is_app_admin() or coalesce(data ->> 'criadoPorId', '') = auth.uid()::text)
+  with check (public.is_app_admin() or coalesce(data ->> 'criadoPorId', '') = auth.uid()::text);
 create policy "fiscal docs delete admin" on public.fiscal_docs for delete to authenticated using (public.is_app_admin());
 create policy "equipamentos admin all" on public.equipamentos for all to authenticated using (public.is_app_admin()) with check (public.is_app_admin());
 create policy "equipamento manutencoes admin all" on public.equipamento_manutencoes for all to authenticated using (public.is_app_admin()) with check (public.is_app_admin());
@@ -733,3 +746,38 @@ begin
   begin alter publication supabase_realtime add table public.push_subscriptions; exception when duplicate_object then null; end;
 end $$;
 
+-- Notificacao assincrona por e-mail para novas Notas Fiscais.
+-- Requer app.settings.supabase_url e app.settings.cron_secret no banco,
+-- alem da Edge Function notify-fiscal-doc publicada com os secrets SMTP.
+create extension if not exists pg_net;
+
+create or replace function public.notify_new_fiscal_doc_email()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  supabase_url text := nullif(current_setting('app.settings.supabase_url', true), '');
+  webhook_secret text := nullif(current_setting('app.settings.cron_secret', true), '');
+begin
+  if upper(coalesce(new.data ->> 'tipo', '')) <> 'NF' then return new; end if;
+  if supabase_url is null or webhook_secret is null then return new; end if;
+
+  perform net.http_post(
+    url := rtrim(supabase_url, '/') || '/functions/v1/notify-fiscal-doc',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', webhook_secret),
+    body := jsonb_build_object('record', jsonb_build_object('id', new.id, 'data', new.data, 'created_at', new.created_at))
+  );
+  return new;
+exception when others then
+  raise warning 'Falha ao enfileirar notificacao fiscal para %: %', new.id, sqlerrm;
+  return new;
+end;
+$$;
+
+revoke all on function public.notify_new_fiscal_doc_email() from public;
+drop trigger if exists fiscal_docs_notify_email_after_insert on public.fiscal_docs;
+create trigger fiscal_docs_notify_email_after_insert
+after insert on public.fiscal_docs
+for each row execute function public.notify_new_fiscal_doc_email();

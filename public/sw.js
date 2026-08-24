@@ -1,16 +1,9 @@
-const CACHE_NAME = 'exsergia-app-v8';
+const CACHE_NAME = 'exsergia-app-v9';
 const CACHE_PREFIX = 'exsergia-app';
 const CORE_ASSETS = ['/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
 
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
-});
-
 // Ao instalar, já coloca o HTML principal no cache
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(CORE_ASSETS))
   );
@@ -19,14 +12,11 @@ self.addEventListener('install', (event) => {
 // Ao ativar, remove caches antigos e assume controle imediatamente
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    Promise.all([
-      self.clients.claim(),
-      caches.keys().then(keys =>
-        Promise.all(
-          keys.filter(k => k.startsWith(CACHE_PREFIX) && k !== CACHE_NAME).map(k => caches.delete(k))
-        )
+    caches.keys().then(keys =>
+      Promise.all(
+        keys.filter(k => k.startsWith(CACHE_PREFIX) && k !== CACHE_NAME).map(k => caches.delete(k))
       )
-    ])
+    )
   );
 });
 

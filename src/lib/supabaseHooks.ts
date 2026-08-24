@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { supabase } from './supabase';
 import { CollectionRef, getDocs, LOCAL_WRITE_EVENT } from './supabaseDb';
 
-let wasHiddenSinceLastLoad = false;
-const collectionCache = new Map<string, { snap: any; timestamp: number }>();
-const CACHE_TTL_MS = 60_000;
+const collectionCache = new Map<string, { snap: any }>();
 
 function invalidateCollectionCache(table?: string) {
   if (!table) {
@@ -21,34 +18,21 @@ function invalidateCollectionCache(table?: string) {
   }
 }
 
-if (typeof document !== 'undefined') {
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      wasHiddenSinceLastLoad = true;
-    } else {
-      // Voltou ao primeiro plano: libera Realtime imediatamente
-      wasHiddenSinceLastLoad = false;
-    }
-  });
-}
-
 /**
- * Hook de leitura com Supabase Realtime.
- *
- * @param paused Quando true, congela atualizações do Realtime (use quando um
- *               modal crítico está aberto — ex: captura de foto no mobile).
+ * Mantem uma captura estavel dos dados durante a sessao da pagina.
+ * Alteracoes externas aparecem somente depois de uma recarga manual do app.
+ * Gravacoes feitas nesta aba continuam aparecendo imediatamente.
  */
 export function useCollection(
   ref: CollectionRef | null | undefined,
   paused = false
 ): [any | undefined, boolean, Error | undefined, () => Promise<void>] {
   const refKey = useMemo(() => JSON.stringify(ref || null), [ref]);
-  const cached = refKey ? collectionCache.get(refKey) : undefined;
+  const cached = collectionCache.get(refKey);
   const [snap, setSnap] = useState<any>(cached?.snap);
   const [loading, setLoading] = useState(!!ref && !cached);
   const [error, setError] = useState<Error>();
 
-  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasLoadedRef = useRef(false);
   const isFetchingRef = useRef(false);
   const pausedRef = useRef(paused);
@@ -62,28 +46,23 @@ export function useCollection(
     }
 
     const cachedResult = collectionCache.get(refKey);
-    const isCacheFresh = cachedResult && (Date.now() - cachedResult.timestamp) < CACHE_TTL_MS;
-
     if (isInitial && cachedResult) {
       setSnap(cachedResult.snap);
       setLoading(false);
       hasLoadedRef.current = true;
-      if (isCacheFresh) return;
+      return;
     }
 
-    // Realtime ignorado se: modal aberto OU página em/voltando de background
     if (!isInitial && pausedRef.current) return;
     if (!isInitial && isFetchingRef.current) return;
 
     isFetchingRef.current = true;
-
-    // Spinner apenas na primeira carga da query
     if (isInitial && !hasLoadedRef.current) setLoading(true);
 
     try {
       setError(undefined);
       const result = await getDocs(ref);
-      collectionCache.set(refKey, { snap: result, timestamp: Date.now() });
+      collectionCache.set(refKey, { snap: result });
       setSnap(result);
       hasLoadedRef.current = true;
     } catch (err) {
@@ -94,7 +73,6 @@ export function useCollection(
     }
   }, [refKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Mantém pausedRef sincronizado. Quando despausa com eventos pendentes, recarrega.
   useEffect(() => {
     const wasPaused = pausedRef.current;
     pausedRef.current = paused;
@@ -104,11 +82,6 @@ export function useCollection(
     }
   }, [paused, loadData]);
 
-  // ── Carga inicial ─────────────────────────────────────────────────────────
-  // Roda quando a query muda — na prática, quando o usuário navega para outra
-  // página (componente remonta). Aqui é onde wasHiddenSinceLastLoad é zerado:
-  // se o usuário navegou, ele está ativamente usando o app e queremos dados
-  // frescos. Fora daqui, a flag permanece true bloqueando o Realtime.
   useEffect(() => {
     let alive = true;
     hasLoadedRef.current = false;
@@ -122,36 +95,18 @@ export function useCollection(
       setLoading(true);
     }
 
-    // Navegação = nova página = libera atualizações para esta sessão de uso
-    wasHiddenSinceLastLoad = false;
-
     const run = async () => {
       if (!alive) return;
       await loadData(true);
     };
 
     run();
-
     return () => {
       alive = false;
-      if (refreshTimer.current) clearTimeout(refreshTimer.current);
     };
   }, [loadData]);
 
-  // ── Recarrega ao voltar do background ────────────────────────────────────
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (!document.hidden && !pausedRef.current) {
-        loadData(false);
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [loadData]);
-
-  // ── Realtime ──────────────────────────────────────────────────────────────
-  // Gravacoes feitas nesta aba devem derrubar o cache imediatamente. Sem isso,
-  // navegar de volta para a tela podia mostrar uma lista antiga por ate 60s.
+  // Somente uma acao local do usuario pode atualizar uma tela ja aberta.
   useEffect(() => {
     if (!ref?.table || typeof window === 'undefined') return;
 
@@ -171,41 +126,6 @@ export function useCollection(
     return () => window.removeEventListener(LOCAL_WRITE_EVENT, handleLocalWrite as EventListener);
   }, [ref?.table, loadData]);
 
-  useEffect(() => {
-    if (!ref?.table) return;
-
-    const channelName = `realtime-${ref.table}-${Math.random().toString(36).slice(2)}`;
-
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: ref.table },
-        () => {
-          if (document.hidden || wasHiddenSinceLastLoad) return;
-          if (pausedRef.current) { pendingRefreshRef.current = true; return; }
-
-          if (refreshTimer.current) clearTimeout(refreshTimer.current);
-          refreshTimer.current = setTimeout(() => {
-            if (pausedRef.current || document.hidden || wasHiddenSinceLastLoad) {
-              if (pausedRef.current) pendingRefreshRef.current = true;
-              return;
-            }
-            loadData(false);
-          }, 300);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      if (refreshTimer.current) clearTimeout(refreshTimer.current);
-      supabase.removeChannel(channel);
-    };
-  }, [ref?.table, loadData]);
-
-  // Recarrega na hora, ignorando o debounce/Realtime — usado logo após uma
-  // gravação local pra refletir a mudança instantaneamente, sem esperar o
-  // evento do Realtime dar a volta no servidor.
   const refetch = useCallback(() => loadData(false), [loadData]);
 
   return [snap, loading, error, refetch];

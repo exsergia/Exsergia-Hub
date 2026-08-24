@@ -110,10 +110,10 @@ export default async function handler(req, res) {
 
     try {
       const body = await readJsonBody(req);
-      const id = body.id || randomUUID();
+      const id = !admin && req.method === 'POST' ? randomUUID() : body.id || randomUUID();
       let existing = {};
 
-      if (req.method === 'PATCH') {
+      if (req.method === 'PATCH' || req.method === 'PUT') {
         const { data: currentRow, error: currentError } = await supabase
           .from(table)
           .select('*')
@@ -126,9 +126,15 @@ export default async function handler(req, res) {
         }
         existing = currentRow ? unwrapRow(currentRow) : {};
 
-        if (!admin && table === 'fiscal_docs' && existing.criadoPorId && existing.criadoPorId !== user.id) {
-          sendJson(res, 403, { ok: false, error: 'Sem permissao para editar este documento.' });
-          return;
+        if (!admin && table === 'fiscal_docs') {
+          if (!currentRow) {
+            sendJson(res, 404, { ok: false, error: 'Documento fiscal nao encontrado.' });
+            return;
+          }
+          if (existing.criadoPorId !== user.id) {
+            sendJson(res, 403, { ok: false, error: 'Voce so pode editar documentos fiscais que criou.' });
+            return;
+          }
         }
       }
 

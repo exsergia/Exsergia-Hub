@@ -66,6 +66,18 @@ const AuthContext = createContext<{
 
 export const useAuth = () => useContext(AuthContext);
 
+let signOutRequestedByUser = false;
+
+async function userRequestedLogOut() {
+  signOutRequestedByUser = true;
+  try {
+    await logOut();
+  } catch (error) {
+    signOutRequestedByUser = false;
+    throw error;
+  }
+}
+
 const withTimeout = async <T,>(promise: Promise<T>, timeoutMs = 8000, label = 'Operação'): Promise<T> => {
   let timer: ReturnType<typeof setTimeout>;
   const timeout = new Promise<never>((_, reject) => {
@@ -249,6 +261,12 @@ function App() {
   const [isRecovery, setIsRecovery] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [encarregadoObraIds, setEncarregadoObraIds] = useState<string[]>([]);
+  const profileUserIdRef = useRef<string | null>(null);
+  const userProfileRef = useRef<Operator | null>(null);
+
+  useEffect(() => {
+    userProfileRef.current = userProfile;
+  }, [userProfile]);
 
   const notify = (type: 'error' | 'success' | 'info' | 'warning', title: string, message?: string) => {
     const id = Math.random().toString(36).substring(7);
@@ -256,14 +274,15 @@ function App() {
   };
 
   const resolveUserProfile = async (u: SupabaseUser) => {
+    profileUserIdRef.current = u.id;
     setCurrentUser(u);
     setUser(u);
 
-    try {
-      const meta = u.user_metadata || {};
-      const emailLower = normalizeLoginEmail(u.email || '');
-      const cpfLimpo = String(meta.cpf || '').replace(/\D/g, '');
+    const meta = u.user_metadata || {};
+    const emailLower = normalizeLoginEmail(u.email || '');
+    const cpfLimpo = String(meta.cpf || '').replace(/\D/g, '');
 
+    try {
       const opRef = doc(db, 'operadores', u.id);
       const encRef = doc(db, 'encarregados', u.id);
 
@@ -346,16 +365,32 @@ function App() {
       if (isNetworkFetchError(e)) {
         resetAppRuntimeCache();
       }
-      setCurrentUser(null);
-      setUser(null);
-      setUserProfile(null);
+
+      // Uma falha temporaria nao pode expulsar o usuario nem desmontar a tela.
+      const previousProfile = userProfileRef.current;
+      if (!previousProfile || previousProfile.id !== u.id) {
+        const isFallbackAdmin = isBootstrapAdminEmail(emailLower);
+        const fallbackProfile: Operator = {
+          id: u.id,
+          nome: String(meta.nome || meta.name || u.email?.split('@')[0] || 'Usuario'),
+          sobrenome: String(meta.sobrenome || ''),
+          telefone: String(meta.telefone || ''),
+          cpf: cpfLimpo,
+          email: emailLower,
+          funcao: isFallbackAdmin ? 'Administrador' : 'Operador de Campo',
+          role: isFallbackAdmin ? 'admin' : 'operator',
+        };
+        userProfileRef.current = fallbackProfile;
+        setUserProfile(fallbackProfile);
+        setEncarregadoObraIds([]);
+      }
       const message = e instanceof Error ? e.message : String(e || '');
       notify(
-        'error',
-        'Erro de conexão com Supabase',
+        'warning',
+        'Conexao temporariamente indisponivel',
         isNetworkFetchError(e)
-          ? 'Falha de comunicação com o Supabase. Atualize a página ou feche e abra o app novamente.'
-          : message ? `Detalhe: ${message}` : 'Não foi possível carregar seu perfil. Feche o app, abra novamente e tente de novo.'
+          ? 'Sua sessao e a tela atual foram mantidas. Recarregue a pagina manualmente quando quiser tentar novamente.'
+          : message ? `Sua tela foi mantida. Detalhe: ${message}` : 'Sua sessao e a tela atual foram mantidas.'
       );
     } finally {
       setLoading(false);
@@ -370,7 +405,9 @@ function App() {
         if (!mounted) return;
         const u = data.session?.user || null;
         if (u) {
-          resolveUserProfile(u);
+          if (profileUserIdRef.current !== u.id) {
+            resolveUserProfile(u);
+          }
         } else {
           setCurrentUser(null);
           setUser(null);
@@ -381,9 +418,6 @@ function App() {
       .catch((error) => {
         console.error('Erro ao iniciar sessão Supabase', error);
         if (!mounted) return;
-        setCurrentUser(null);
-        setUser(null);
-        setUserProfile(null);
         setLoading(false);
         if (isNetworkFetchError(error)) {
           resetAppRuntimeCache();
@@ -405,17 +439,22 @@ function App() {
       }
 
       if (u) {
-        if (event === 'SIGNED_IN') {
-          setLoading(true);
+        signOutRequestedByUser = false;
+        setCurrentUser(u);
+        setUser(u);
+        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && profileUserIdRef.current !== u.id) {
+          if (!userProfileRef.current) setLoading(true);
           resolveUserProfile(u);
-        } else {
-          setCurrentUser(u);
-          setUser(u);
         }
-      } else {
+      } else if (event === 'SIGNED_OUT' && signOutRequestedByUser) {
+        signOutRequestedByUser = false;
+        profileUserIdRef.current = null;
+        userProfileRef.current = null;
         setCurrentUser(null);
         setUser(null);
         setUserProfile(null);
+        setLoading(false);
+      } else if (event === 'INITIAL_SESSION') {
         setLoading(false);
       }
     });
@@ -463,7 +502,7 @@ function App() {
               setUser(null);
               setUserProfile(null);
               setCurrentUser(null);
-              await logOut();
+              await userRequestedLogOut();
             }}
           />
         ) : !user ? (
@@ -576,10 +615,6 @@ async function resetAppRuntimeCache() {
       );
     }
 
-    if ('serviceWorker' in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(registrations.map(registration => registration.update().catch(() => undefined)));
-    }
   } catch (error) {
     console.warn('Nao foi possivel limpar o cache local do app.', error);
   }
@@ -1335,7 +1370,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           </div>
           
           <button 
-            onClick={() => logOut()}
+            onClick={() => userRequestedLogOut()}
             className="w-full flex items-center gap-2 px-3 py-2 rounded text-[10px] font-bold text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-colors uppercase tracking-widest"
           >
             <LogOut className="w-4 h-4" />
