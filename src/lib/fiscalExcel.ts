@@ -124,6 +124,7 @@ export function buildFiscalInvoiceRows(
       '';
 
     const termos = [
+      obraNome || 'SEM PROJETO',
       doc.fornecedor,
       ...(doc.operadoresPresentes || []).map(operador => operador.nome),
     ]
