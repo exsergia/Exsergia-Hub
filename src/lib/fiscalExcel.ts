@@ -123,12 +123,13 @@ export function buildFiscalInvoiceRows(
       obras.find(obra => obra.id === doc.obraId)?.nome ||
       '';
 
-    const termos = normalize(
-      (doc.operadoresPresentes || [])
-        .map(operador => operador.nome)
-        .filter(Boolean)
-        .join(' - ')
-    );
+    const termos = [
+      doc.fornecedor,
+      ...(doc.operadoresPresentes || []).map(operador => operador.nome),
+    ]
+      .map(value => (value || '').trim())
+      .filter(Boolean)
+      .join(' - ');
 
     return {
       [fiscalInvoiceHeaders[0]]: paymentReference,
