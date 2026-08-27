@@ -109,6 +109,13 @@ const firstPartnerName = (doc: FiscalDoc) =>
   doc.operadoresPresentes?.find(operador => operador.nome)?.nome ||
   'PARCEIRO NÃO INFORMADO';
 
+const fiscalProjectCode = (projectName?: string) => {
+  const value = (projectName || '').trim();
+  const code = value.match(/\d+\s*[xX]\s*\d+/)?.[0] || value.match(/^\d+/)?.[0] || '';
+
+  return code.replace(/\s+/g, '').replace('X', 'x');
+};
+
 export function buildFiscalInvoiceRows(
   fiscalDocs: FiscalDoc[],
   obras: Obra[]
@@ -122,9 +129,10 @@ export function buildFiscalInvoiceRows(
       doc.obraNome ||
       obras.find(obra => obra.id === doc.obraId)?.nome ||
       '';
+    const projeto = fiscalProjectCode(obraNome);
 
     const termos = [
-      obraNome || 'SEM PROJETO',
+      projeto || 'SEM PROJETO',
       doc.fornecedor,
       ...(doc.operadoresPresentes || []).map(operador => operador.nome),
     ]
@@ -139,7 +147,7 @@ export function buildFiscalInvoiceRows(
       [fiscalInvoiceHeaders[3]]: dateOnly,
       [fiscalInvoiceHeaders[4]]: partnerName,
       [fiscalInvoiceHeaders[5]]: termos || 'SEM COLABORADOR',
-      [fiscalInvoiceHeaders[6]]: obraNome || 'SEM PROJETO',
+      [fiscalInvoiceHeaders[6]]: projeto || 'SEM PROJETO',
       [fiscalInvoiceHeaders[7]]: fiscalProduct(doc.fornecedor),
       [fiscalInvoiceHeaders[8]]: doc.cartaoFinal
         ? `Cartão final ${doc.cartaoFinal}`
