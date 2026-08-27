@@ -121,9 +121,11 @@ async function downloadUrl(url?: string, filename = 'imagem.jpg') {
 }
 
 export default function Relatorios() {
-  const { isAdmin, notify } = useAuth();
+  const { user, userProfile, isAdmin, notify } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = usePersistedTab<RelatorioTab>('tab-relatorios', 'diarios');
+  const currentUserEmail = (userProfile?.email || user?.email || '').trim().toLowerCase();
+  const canExportFiscal = isAdmin || currentUserEmail === 'contasapagar@exsergia.eng.br';
 
   const [checklistsSnap, loading, checklistsError] = useCollection(
     query(collection(db, 'checklists'), orderBy('data', 'desc'))
@@ -341,15 +343,24 @@ export default function Relatorios() {
   });
 
   const totalFiscal = filteredFiscal.reduce((acc, f) => acc + (f.valor || 0), 0);
+  const hasFiscalFilters = Boolean(search.trim() || startDate || endDate);
 
-  const handleExportFiscal = () => {
+  const exportFiscalDocs = (docsToExport: FiscalDoc[], scope: 'filtradas' | 'todas') => {
+    if (docsToExport.length === 0) {
+      notify('warning', 'Sem contas para exportar', 'Nenhuma nota fiscal corresponde a esta selecao.');
+      return;
+    }
+
     const wb = utils.book_new();
-    const data = buildFiscalInvoiceRows(filteredFiscal, obras);
+    const data = buildFiscalInvoiceRows(docsToExport, obras);
     const ws = utils.json_to_sheet(data, { header: fiscalInvoiceHeaders });
     applyFiscalInvoiceSheetLayout(ws);
     utils.book_append_sheet(wb, ws, 'Sheet1');
-    writeFile(wb, `importacao_faturas_exsergia_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    writeFile(wb, `importacao_faturas_exsergia_${scope}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
+
+  const handleExportFiscal = () => exportFiscalDocs(filteredFiscal, 'filtradas');
+  const handleExportAllFiscal = () => exportFiscalDocs(fiscalDocs, 'todas');
 
   const handleExportInventario = () => {
     if (filteredTools.length === 0) {
@@ -691,14 +702,25 @@ export default function Relatorios() {
               </button>
             </>
           )}
-          {activeTab === 'fiscal' && isAdmin && filteredFiscal.length > 0 && (
-            <button
-              onClick={handleExportFiscal}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-900 text-white rounded-xl text-xs sm:text-sm font-bold hover:bg-zinc-800 transition-all shadow-sm"
-            >
-              <FileDown className="w-4 h-4 shrink-0" />
-              Exportar Excel
-            </button>
+          {activeTab === 'fiscal' && canExportFiscal && fiscalDocs.length > 0 && (
+            <>
+              {hasFiscalFilters && filteredFiscal.length > 0 && (
+                <button
+                  onClick={handleExportFiscal}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 rounded-xl text-xs sm:text-sm font-bold hover:bg-zinc-50 transition-all shadow-sm"
+                >
+                  <Calendar className="w-4 h-4 shrink-0" />
+                  Exportar periodo
+                </button>
+              )}
+              <button
+                onClick={handleExportAllFiscal}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-900 text-white rounded-xl text-xs sm:text-sm font-bold hover:bg-zinc-800 transition-all shadow-sm"
+              >
+                <FileDown className="w-4 h-4 shrink-0" />
+                Exportar todas
+              </button>
+            </>
           )}
         </div>
       </div>
