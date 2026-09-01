@@ -1,9 +1,5 @@
--- Envia uma notificacao sempre que uma Nota Fiscal ou Cupom Fiscal e inserido.
--- O envio e assincrono e nunca bloqueia o salvamento do registro.
---
--- Reutiliza as configuracoes usadas pelo agendador notify-overdue:
---   alter database postgres set app.settings.supabase_url = 'https://SEU-PROJETO.supabase.co';
---   alter database postgres set app.settings.cron_secret = 'MESMO_VALOR_DO_SECRET_CRON_SECRET';
+-- Amplia o aviso fiscal para Nota Fiscal e Cupom Fiscal.
+-- Substitui a funcao do trigger existente sem recriar dados.
 
 create extension if not exists pg_net;
 

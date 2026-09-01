@@ -17,7 +17,15 @@ const SMTP_PORT = Number(Deno.env.get('SMTP_PORT') || '465');
 const SMTP_USER = Deno.env.get('SMTP_USER') || '';
 const SMTP_PASS = Deno.env.get('SMTP_PASS') || '';
 const SMTP_FROM = Deno.env.get('SMTP_FROM') || SMTP_USER;
-const NOTIFICATION_EMAIL = Deno.env.get('FISCAL_NOTIFICATION_EMAIL') || 'contasapagar@exsergia.eng.br';
+const DEFAULT_NOTIFICATION_EMAILS = [
+  'contasapagar@exsergia.eng.br',
+  'nascimentoerick446@gmail.com',
+];
+const NOTIFICATION_EMAILS = Array.from(new Set([
+  ...DEFAULT_NOTIFICATION_EMAILS,
+  ...(Deno.env.get('FISCAL_NOTIFICATION_EMAILS') || '').split(','),
+  Deno.env.get('FISCAL_NOTIFICATION_EMAIL') || '',
+].map((email) => email.trim().toLowerCase()).filter(Boolean)));
 const APP_URL = Deno.env.get('FISCAL_APP_URL') || 'https://exsergia-hub-sage.vercel.app/#/notas-fiscais';
 const SMTP_ENABLED = Boolean(SMTP_HOST && SMTP_USER && SMTP_PASS && SMTP_FROM);
 const PUSH_ENABLED = Boolean(SUPABASE_URL && SERVICE_ROLE && VAPID_PUBLIC && VAPID_PRIVATE);
@@ -86,6 +94,9 @@ function operatorNames(value: unknown) {
 
 async function sendFiscalPush(input: {
   documentId: string;
+  documentLabel: string;
+  documentArticle: string;
+  documentPushTitle: string;
   amount: string;
   supplier: string;
   worksite: string;
@@ -99,15 +110,16 @@ async function sendFiscalPush(input: {
     .select('id,data');
   if (operatorError) throw operatorError;
 
-  const notificationEmail = normalizeEmail(NOTIFICATION_EMAIL);
-  const recipient = (operatorRows || []).find((value: unknown) => {
+  const recipients = (operatorRows || []).filter((value: unknown) => {
     const row = asRecord(value);
     const data = asRecord(row.data);
-    return normalizeEmail(data.email ?? row.email) === notificationEmail;
+    return NOTIFICATION_EMAILS.includes(normalizeEmail(data.email ?? row.email));
   });
-  const recipientId = String(asRecord(recipient).id || '');
-  if (!recipientId) {
-    return { sent: 0, subscriptions: 0, reason: 'Usuario de contas a pagar nao encontrado.' };
+  const recipientIds = new Set(
+    recipients.map((recipient: unknown) => String(asRecord(recipient).id || '')).filter(Boolean),
+  );
+  if (recipientIds.size === 0) {
+    return { sent: 0, subscriptions: 0, reason: 'Usuarios destinatarios nao encontrados.' };
   }
 
   const { data: subscriptionRows, error: subscriptionError } = await supabase
@@ -121,7 +133,8 @@ async function sendFiscalPush(input: {
     const data = asRecord(row.data);
     const keys = asRecord(data.keys);
     if (
-      data.userId !== recipientId
+      typeof data.userId !== 'string'
+      || !recipientIds.has(data.userId)
       || typeof data.endpoint !== 'string'
       || typeof keys.p256dh !== 'string'
       || typeof keys.auth !== 'string'
@@ -137,10 +150,10 @@ async function sendFiscalPush(input: {
     .filter((value) => value && value !== 'Nao informado')
     .join(' - ');
   const body = input.submittedBy && input.submittedBy !== 'Nao informado'
-    ? `${input.submittedBy} lancou uma nota fiscal${details ? `: ${details}` : '.'}`
-    : `Nova nota fiscal lancada${details ? `: ${details}` : '.'}`;
+    ? `${input.submittedBy} lancou ${input.documentArticle} ${input.documentLabel}${details ? `: ${details}` : '.'}`
+    : `${input.documentPushTitle}${details ? `: ${details}` : '.'}`;
   const payload = JSON.stringify({
-    title: 'Nova nota fiscal lancada',
+    title: input.documentPushTitle,
     body,
     url: '/#/notas-fiscais',
     tag: `nota-fiscal-${input.documentId}`,
@@ -186,9 +199,16 @@ Deno.serve(async (req) => {
 
   const record = asRecord(body.record);
   const fiscalDoc = asRecord(record.data);
-  if (fiscalDoc.tipo !== 'NF') {
-    return json({ ok: true, skipped: true, reason: 'O documento nao e do tipo NF.' }, 202);
+  const documentType = cleanText(fiscalDoc.tipo, '', 20).toUpperCase();
+  if (!['NF', 'CUPOM'].includes(documentType)) {
+    return json({ ok: true, skipped: true, reason: 'O documento nao e NF nem Cupom.' }, 202);
   }
+
+  const isReceipt = documentType === 'CUPOM';
+  const documentLabel = isReceipt ? 'cupom fiscal' : 'nota fiscal';
+  const documentArticle = isReceipt ? 'um' : 'uma';
+  const documentPushTitle = isReceipt ? 'Novo cupom fiscal lancado' : 'Nova nota fiscal lancada';
+  const documentHeading = isReceipt ? 'Novo cupom fiscal recebido' : 'Nova nota fiscal recebida';
 
   const documentId = cleanText(record.id, 'sem-id', 100);
   const amount = formatCurrency(fiscalDoc.valor);
@@ -197,11 +217,11 @@ Deno.serve(async (req) => {
   const submittedBy = cleanText(fiscalDoc.criadoPorNome);
   const fiscalDate = formatDate(fiscalDoc.data);
   const operators = operatorNames(fiscalDoc.operadoresPresentes);
-  const subject = cleanText(`Nova nota fiscal recebida - ${amount} - ${worksite}`, 'Nova nota fiscal recebida', 180);
+  const subject = cleanText(`${documentHeading} - ${amount} - ${worksite}`, documentHeading, 180);
   const html = `
     <div style="font-family:Arial,sans-serif;color:#18181b;line-height:1.5;max-width:640px">
-      <h2 style="margin:0 0 16px">Nova nota fiscal recebida</h2>
-      <p>Um novo lancamento do tipo <strong>Nota Fiscal</strong> foi enviado ao Exsergia Hub.</p>
+      <h2 style="margin:0 0 16px">${escapeHtml(documentHeading)}</h2>
+      <p>Um novo lancamento do tipo <strong>${isReceipt ? 'Cupom Fiscal' : 'Nota Fiscal'}</strong> foi enviado ao Exsergia Hub.</p>
       <table style="border-collapse:collapse;width:100%;margin:20px 0">
         <tr><td style="padding:8px;border-bottom:1px solid #e4e4e7"><strong>Valor</strong></td><td style="padding:8px;border-bottom:1px solid #e4e4e7">${escapeHtml(amount)}</td></tr>
         <tr><td style="padding:8px;border-bottom:1px solid #e4e4e7"><strong>Data da NF</strong></td><td style="padding:8px;border-bottom:1px solid #e4e4e7">${escapeHtml(fiscalDate)}</td></tr>
@@ -217,7 +237,16 @@ Deno.serve(async (req) => {
 
   let push = { sent: 0, subscriptions: 0, reason: '' };
   try {
-    const result = await sendFiscalPush({ documentId, amount, supplier, worksite, submittedBy });
+    const result = await sendFiscalPush({
+      documentId,
+      documentLabel,
+      documentArticle,
+      documentPushTitle,
+      amount,
+      supplier,
+      worksite,
+      submittedBy,
+    });
     push = {
       sent: result.sent,
       subscriptions: result.subscriptions,
@@ -235,7 +264,7 @@ Deno.serve(async (req) => {
       pushSent: push.sent,
       pushSubscriptions: push.subscriptions,
       pushReason: push.reason || undefined,
-      recipient: NOTIFICATION_EMAIL,
+      recipients: NOTIFICATION_EMAILS,
       documentId,
     });
   }
@@ -252,7 +281,7 @@ Deno.serve(async (req) => {
   try {
     await client.send({
       from: SMTP_FROM,
-      to: NOTIFICATION_EMAIL,
+      to: NOTIFICATION_EMAILS.join(', '),
       subject,
       content: 'auto',
       html,
@@ -263,7 +292,7 @@ Deno.serve(async (req) => {
       pushSent: push.sent,
       pushSubscriptions: push.subscriptions,
       pushReason: push.reason || undefined,
-      recipient: NOTIFICATION_EMAIL,
+      recipients: NOTIFICATION_EMAILS,
       documentId,
     });
   } catch (error) {

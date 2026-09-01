@@ -26,7 +26,10 @@ export function PushNotificationSetup({ userId, userEmail, notify }: Props) {
   const [busy, setBusy] = useState(false);
   const [hidden, setHidden] = useState(false);
   const ios = useMemo(() => isIosDevice(), []);
-  const receivesFiscalPush = userEmail?.trim().toLowerCase() === 'contasapagar@exsergia.eng.br';
+  const receivesFiscalPush = [
+    'contasapagar@exsergia.eng.br',
+    'nascimentoerick446@gmail.com',
+  ].includes(userEmail?.trim().toLowerCase() || '');
 
   const check = useCallback(async () => {
     if (!userId) return;

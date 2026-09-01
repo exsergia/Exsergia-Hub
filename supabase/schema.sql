@@ -761,7 +761,7 @@ declare
   supabase_url text := nullif(current_setting('app.settings.supabase_url', true), '');
   webhook_secret text := nullif(current_setting('app.settings.cron_secret', true), '');
 begin
-  if upper(coalesce(new.data ->> 'tipo', '')) <> 'NF' then return new; end if;
+  if upper(trim(coalesce(new.data ->> 'tipo', ''))) not in ('NF', 'CUPOM') then return new; end if;
   if supabase_url is null or webhook_secret is null then return new; end if;
 
   perform net.http_post(
