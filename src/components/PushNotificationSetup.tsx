@@ -6,6 +6,7 @@ type SetupState = 'checking' | 'permission' | 'install-ios' | 'blocked' | 'error
 
 type Props = {
   userId: string;
+  userEmail?: string;
   notify: (type: 'error' | 'success' | 'info' | 'warning', title: string, message?: string) => void;
 };
 
@@ -20,11 +21,12 @@ function isStandaloneApp() {
     || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
 }
 
-export function PushNotificationSetup({ userId, notify }: Props) {
+export function PushNotificationSetup({ userId, userEmail, notify }: Props) {
   const [state, setState] = useState<SetupState>('checking');
   const [busy, setBusy] = useState(false);
   const [hidden, setHidden] = useState(false);
   const ios = useMemo(() => isIosDevice(), []);
+  const receivesFiscalPush = userEmail?.trim().toLowerCase() === 'contasapagar@exsergia.eng.br';
 
   const check = useCallback(async () => {
     if (!userId) return;
@@ -70,7 +72,9 @@ export function PushNotificationSetup({ userId, notify }: Props) {
       notify(
         'success',
         'Notificações ativadas',
-        'Os atrasos de ferramentas chegarão neste aparelho mesmo com o aplicativo fechado.',
+        receivesFiscalPush
+          ? 'As novas notas fiscais chegarão neste aparelho mesmo com o aplicativo fechado.'
+          : 'Os atrasos de ferramentas chegarão neste aparelho mesmo com o aplicativo fechado.',
       );
     } finally {
       setBusy(false);
@@ -104,8 +108,10 @@ export function PushNotificationSetup({ userId, notify }: Props) {
           }
         : {
             icon: <BellRing className="h-5 w-5" />,
-            title: 'Receba atrasos no celular',
-            body: 'Ative uma vez para receber avisos das suas ferramentas mesmo sem abrir o aplicativo.',
+            title: receivesFiscalPush ? 'Receba notas fiscais no celular' : 'Receba atrasos no celular',
+            body: receivesFiscalPush
+              ? 'Ative uma vez para ser avisado quando uma nova nota fiscal for lançada, mesmo sem abrir o aplicativo.'
+              : 'Ative uma vez para receber avisos das suas ferramentas mesmo sem abrir o aplicativo.',
           };
 
   return (

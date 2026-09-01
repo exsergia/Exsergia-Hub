@@ -51,7 +51,7 @@ export default function Settings() {
           return;
         }
         sendBrowserNotification('Configurações Salvas', 'Notificações ativadas neste aparelho.');
-        notify('success', 'Preferências Salvas', 'Este aparelho receberá os atrasos de ferramentas mesmo com o aplicativo fechado.');
+        notify('success', 'Preferências Salvas', 'Este aparelho receberá os avisos do sistema mesmo com o aplicativo fechado.');
       } else {
         notify('warning', 'Preferências Salvas', 'Preferências salvas, mas as notificações estão bloqueadas no navegador.');
       }

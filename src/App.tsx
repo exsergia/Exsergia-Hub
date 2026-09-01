@@ -512,7 +512,11 @@ function App() {
           <BrowserRouter>
             <RouteTracker />
             <OverdueToolsAlert />
-            <PushNotificationSetup userId={userProfile?.id || user.id} notify={notify} />
+            <PushNotificationSetup
+              userId={userProfile?.id || user.id}
+              userEmail={userProfile?.email || user.email || ''}
+              notify={notify}
+            />
             <ErrorBoundary>
               <Layout>
                 <React.Suspense fallback={<PageLoader />}>
