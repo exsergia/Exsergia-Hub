@@ -408,7 +408,7 @@ export default function NotasFiscais() {
                   </div>
                   {d.fornecedor && <p className="text-xs text-zinc-600 break-words flex items-center gap-1"><Receipt className="w-3 h-3 text-zinc-400" />{d.fornecedor}</p>}
                   {d.cartaoFinal && (
-                    <p className="text-xs text-zinc-600 flex items-center gap-1 font-mono"><CreditCard className="w-3 h-3 text-zinc-400" />•••• {d.cartaoFinal}</p>
+                    <p className="text-base font-bold text-zinc-900 flex items-center gap-1.5 font-mono"><CreditCard className="w-4 h-4 text-zinc-500" />•••• {d.cartaoFinal}</p>
                   )}
                   {d.obraNome && <p className="text-xs text-zinc-600 break-words flex items-center gap-1"><HardHat className="w-3 h-3 text-zinc-400" />{d.obraNome}</p>}
                   {(d.operadoresPresentes?.length || 0) > 0 && <p className="text-[11px] text-zinc-500 break-words flex items-center gap-1"><Users className="w-3 h-3 text-zinc-400" />{d.operadoresPresentes!.map(p => p.nome).join(', ')}</p>}

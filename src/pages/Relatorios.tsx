@@ -981,7 +981,7 @@ export default function Relatorios() {
                       )}
                       <div className="flex items-center justify-between pt-1 text-[10px] text-zinc-400">
                         <span className="flex items-center gap-1 truncate"><User className="w-3 h-3" />{f.criadoPorNome || '—'}</span>
-                        {f.cartaoFinal && <span className="font-mono">•••• {f.cartaoFinal}</span>}
+                        {f.cartaoFinal && <span className="text-base font-bold text-zinc-700 font-mono">•••• {f.cartaoFinal}</span>}
                       </div>
                     </div>
                   </div>
