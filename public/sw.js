@@ -1,4 +1,4 @@
-const CACHE_NAME = 'exsergia-app-v9';
+const CACHE_NAME = 'exsergia-app-v10';
 const CACHE_PREFIX = 'exsergia-app';
 const CORE_ASSETS = ['/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
 
@@ -7,6 +7,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(CORE_ASSETS))
   );
+  self.skipWaiting();
 });
 
 // Ao ativar, remove caches antigos e assume controle imediatamente
@@ -16,7 +17,7 @@ self.addEventListener('activate', (event) => {
       Promise.all(
         keys.filter(k => k.startsWith(CACHE_PREFIX) && k !== CACHE_NAME).map(k => caches.delete(k))
       )
-    )
+    ).then(() => self.clients.claim())
   );
 });
 
@@ -98,6 +99,8 @@ self.addEventListener('push', (event) => {
     badge: '/icon-192.png',
     tag: payload.tag || 'exsergia-notif',
     renotify: true,
+    requireInteraction: true,
+    timestamp: Date.now(),
     data: { url: payload.url || '/' },
   };
 

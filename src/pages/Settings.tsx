@@ -45,9 +45,13 @@ export default function Settings() {
       const ok = await requestNotificationPermission();
       if (ok) {
         const uid = userProfile?.id || auth.currentUser?.id;
-        if (uid) await registerPushForUser(uid);
+        const registered = uid ? await registerPushForUser(uid) : false;
+        if (!registered) {
+          notify('warning', 'Preferências Salvas', 'As preferências foram salvas, mas não foi possível registrar este aparelho para notificações.');
+          return;
+        }
         sendBrowserNotification('Configurações Salvas', 'Notificações ativadas neste aparelho.');
-        notify('success', 'Preferências Salvas', 'Preferências salvas e notificações ativadas neste aparelho.');
+        notify('success', 'Preferências Salvas', 'Este aparelho receberá os atrasos de ferramentas mesmo com o aplicativo fechado.');
       } else {
         notify('warning', 'Preferências Salvas', 'Preferências salvas, mas as notificações estão bloqueadas no navegador.');
       }

@@ -13,6 +13,7 @@ import {
 import { doc, getDoc, setDoc, updateDoc, collection, db, query, where } from './lib/supabaseDb';
 import { useCollection } from './lib/supabaseHooks';
 import { PageIntro } from './components/PageIntro';
+import { PushNotificationSetup } from './components/PushNotificationSetup';
 import { Operator } from './types';
 import {
   LayoutDashboard,
@@ -511,6 +512,7 @@ function App() {
           <BrowserRouter>
             <RouteTracker />
             <OverdueToolsAlert />
+            <PushNotificationSetup userId={userProfile?.id || user.id} notify={notify} />
             <ErrorBoundary>
               <Layout>
                 <React.Suspense fallback={<PageLoader />}>
