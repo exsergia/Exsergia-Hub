@@ -77,7 +77,7 @@ export function PushNotificationSetup({ userId, userEmail, notify }: Props) {
         'Notificações ativadas',
         receivesFiscalPush
           ? 'As novas notas fiscais chegarão neste aparelho mesmo com o aplicativo fechado.'
-          : 'Os atrasos de ferramentas chegarão neste aparelho mesmo com o aplicativo fechado.',
+          : 'Os atrasos de ferramentas e os retornos das suas notinhas chegarão neste aparelho mesmo com o aplicativo fechado.',
       );
     } finally {
       setBusy(false);
@@ -109,13 +109,13 @@ export function PushNotificationSetup({ userId, userEmail, notify }: Props) {
             title: 'Não foi possível registrar este aparelho',
             body: 'Verifique a conexão e tente ativar novamente.',
           }
-        : {
-            icon: <BellRing className="h-5 w-5" />,
-            title: receivesFiscalPush ? 'Receba notas fiscais no celular' : 'Receba atrasos no celular',
-            body: receivesFiscalPush
-              ? 'Ative uma vez para ser avisado quando uma nova nota fiscal for lançada, mesmo sem abrir o aplicativo.'
-              : 'Ative uma vez para receber avisos das suas ferramentas mesmo sem abrir o aplicativo.',
-          };
+      : {
+          icon: <BellRing className="h-5 w-5" />,
+          title: receivesFiscalPush ? 'Receba notas fiscais no celular' : 'Receba avisos no celular',
+          body: receivesFiscalPush
+            ? 'Ative uma vez para ser avisado quando uma nova nota fiscal for lançada, mesmo sem abrir o aplicativo.'
+            : 'Ative uma vez para receber atrasos de ferramentas e o retorno das suas NF/Cupons mesmo sem abrir o aplicativo.',
+        };
 
   return (
     <div className="fixed inset-x-3 bottom-3 z-[9998] mx-auto max-w-lg rounded-2xl border border-amber-200 bg-white p-4 shadow-2xl shadow-zinc-900/20 sm:bottom-5">

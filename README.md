@@ -185,6 +185,10 @@ decisão anterior e devolve o lançamento ao status pendente. A autorização é
 validada no banco pela função `review_fiscal_doc`; a verificação da interface
 não substitui essa proteção.
 
+Quando um documento é reprovado, o banco chama a Edge Function de notificação
+para enviar Web Push ao usuário que fez o lançamento, informando o motivo e
+orientando o colaborador a falar com o Financeiro (Ariane).
+
 ## Notificação de nova Nota Fiscal
 
 Quando um registro do tipo `NF` ou `Cupom` é inserido em `fiscal_docs`, o banco chama a Edge Function

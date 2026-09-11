@@ -180,6 +180,74 @@ async function sendFiscalPush(input: {
   return { sent, subscriptions: subscriptions.length };
 }
 
+async function sendFiscalRejectionPush(input: {
+  documentId: string;
+  recipientUserId: string;
+  title: string;
+  body: string;
+}): Promise<{ sent: number; subscriptions: number; reason?: string }> {
+  if (!PUSH_ENABLED) return { sent: 0, subscriptions: 0, reason: 'Push nao configurado.' };
+  if (!input.recipientUserId) {
+    return { sent: 0, subscriptions: 0, reason: 'Criador do documento nao informado.' };
+  }
+
+  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+  const { data: subscriptionRows, error: subscriptionError } = await supabase
+    .from('push_subscriptions')
+    .select('id,data')
+    .eq('data->>userId', input.recipientUserId);
+  if (subscriptionError) throw subscriptionError;
+
+  const subscriptions: PushSubscription[] = [];
+  for (const value of subscriptionRows || []) {
+    const row = asRecord(value);
+    const data = asRecord(row.data);
+    const keys = asRecord(data.keys);
+    if (
+      data.userId !== input.recipientUserId
+      || typeof data.endpoint !== 'string'
+      || typeof keys.p256dh !== 'string'
+      || typeof keys.auth !== 'string'
+    ) continue;
+    subscriptions.push({
+      id: String(row.id || ''),
+      endpoint: data.endpoint,
+      keys: { p256dh: keys.p256dh, auth: keys.auth },
+    });
+  }
+
+  const payload = JSON.stringify({
+    title: input.title,
+    body: input.body,
+    url: '/#/notas-fiscais',
+    tag: `fiscal-reprovado-${input.documentId}`,
+  });
+
+  let sent = 0;
+  for (const subscription of subscriptions) {
+    try {
+      await webpush.sendNotification(
+        { endpoint: subscription.endpoint, keys: subscription.keys },
+        payload,
+      );
+      sent += 1;
+    } catch (error: unknown) {
+      const statusCode = errorStatusCode(error);
+      if (statusCode === 404 || statusCode === 410) {
+        await supabase.from('push_subscriptions').delete().eq('id', subscription.id);
+      } else {
+        console.error('Falha ao enviar push de reprovacao fiscal', error);
+      }
+    }
+  }
+
+  return {
+    sent,
+    subscriptions: subscriptions.length,
+    reason: subscriptions.length === 0 ? 'O colaborador nao possui aparelho cadastrado.' : undefined,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ ok: false, error: 'Metodo nao permitido.' }, 405);
   if (!CRON_SECRET) return json({ ok: false, error: 'CRON_SECRET nao configurado.' }, 503);
@@ -209,8 +277,57 @@ Deno.serve(async (req) => {
   const documentArticle = isReceipt ? 'um' : 'uma';
   const documentPushTitle = isReceipt ? 'Novo cupom fiscal lancado' : 'Nova nota fiscal lancada';
   const documentHeading = isReceipt ? 'Novo cupom fiscal recebido' : 'Nova nota fiscal recebida';
-
   const documentId = cleanText(record.id, 'sem-id', 100);
+  const eventType = cleanText(body.eventType, 'new_document', 50).toLowerCase();
+
+  if (eventType === 'fiscal_rejected') {
+    if (cleanText(fiscalDoc.approvalStatus, '', 30).toLowerCase() !== 'rejected') {
+      return json({ ok: true, skipped: true, reason: 'O documento nao esta reprovado.' }, 202);
+    }
+
+    const recipientUserId = cleanText(fiscalDoc.criadoPorId, '', 100);
+    const rejectionReason = cleanText(fiscalDoc.rejectionReason, '', 80).toLowerCase();
+    const rejectionReasonLabel = rejectionReason === 'imagem_nao_legivel'
+      ? 'Imagem não legível'
+      : rejectionReason === 'dados_nao_condizentes'
+        ? 'Dados não condizentes'
+        : 'Motivo não informado';
+    const title = isReceipt ? 'Cupom fiscal reprovado' : 'Nota fiscal reprovada';
+    const rejectionBody = `${isReceipt ? 'Seu cupom fiscal foi reprovado' : 'Sua nota fiscal foi reprovada'}. Motivo: ${rejectionReasonLabel}. Fale com o Financeiro (Ariane).`;
+
+    try {
+      const push = await sendFiscalRejectionPush({
+        documentId,
+        recipientUserId,
+        title,
+        body: rejectionBody,
+      });
+      return json({
+        ok: true,
+        eventType,
+        documentId,
+        recipientUserId,
+        pushSent: push.sent,
+        pushSubscriptions: push.subscriptions,
+        pushReason: push.reason,
+      });
+    } catch (error) {
+      console.error('Falha ao processar push de reprovacao fiscal', error);
+      return json({
+        ok: false,
+        eventType,
+        documentId,
+        recipientUserId,
+        pushSent: 0,
+        error: 'Falha ao enviar a notificacao de reprovacao.',
+      }, 500);
+    }
+  }
+
+  if (eventType !== 'new_document') {
+    return json({ ok: false, error: 'Tipo de evento invalido.' }, 400);
+  }
+
   const amount = formatCurrency(fiscalDoc.valor);
   const supplier = cleanText(fiscalDoc.fornecedor);
   const worksite = cleanText(fiscalDoc.obraNome);

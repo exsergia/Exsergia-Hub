@@ -519,7 +519,10 @@ export default function NotasFiscais() {
                   {approvalStatus === 'rejected' && d.rejectionReason && (
                     <div className="flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
                       <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                      <span>Motivo: {REJECTION_REASON_LABELS[d.rejectionReason]}</span>
+                      <span>
+                        Motivo: {REJECTION_REASON_LABELS[d.rejectionReason]}
+                        <strong className="mt-0.5 block">Fale com o Financeiro (Ariane).</strong>
+                      </span>
                     </div>
                   )}
                   {(d.fotoSizeBytes || d.fotoStorageSizeBytes || d.thumbnailSizeBytes) && (
