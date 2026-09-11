@@ -198,8 +198,7 @@ insert into public.admin_access (id, data) values
   ('email:nascimentoerick446@gmail.com', '{"tipo":"email","valor":"nascimentoerick446@gmail.com","ativo":true}'::jsonb),
   ('email:exsergiacel7234@gmail.com', '{"tipo":"email","valor":"exsergiacel7234@gmail.com","ativo":true}'::jsonb),
   ('email:contasapagar@exsergia.eng.br', '{"tipo":"email","valor":"contasapagar@exsergia.eng.br","ativo":true}'::jsonb),
-  ('email:rosangela@exsergia.eng.br', '{"tipo":"email","valor":"rosangela@exsergia.eng.br","ativo":true}'::jsonb),
-  ('email:gabriela.souza@exsergia.eng.br', '{"tipo":"email","valor":"gabriela.souza@exsergia.eng.br","ativo":true}'::jsonb)
+  ('email:rosangela@exsergia.eng.br', '{"tipo":"email","valor":"rosangela@exsergia.eng.br","ativo":true}'::jsonb)
 on conflict (id) do update set data = excluded.data;
 
 create or replace function public.is_app_admin()

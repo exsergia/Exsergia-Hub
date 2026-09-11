@@ -114,7 +114,6 @@ const BOOTSTRAP_ADMIN_EMAILS = [
   'exsergiacel7234@gmail.com',
   'contasapagar@exsergia.eng.br',
   'rosangela@exsergia.eng.br',
-  'gabriela.souza@exsergia.eng.br',
 ];
 const LOGIN_EMAIL_ALIASES: Record<string, string> = {
   'contasapagar@exsergia.eng.vc': 'contasapagar@exsergia.eng.br',
