@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useCollection } from '../lib/supabaseHooks';
 import { collection, addDoc, deleteDoc, doc, serverTimestamp, query, orderBy, updateDoc, where } from '../lib/supabaseDb';
-import { db, handleFirestoreError, OperationType, auth } from '../lib/supabase';
+import { db, handleFirestoreError, OperationType, auth, supabase, withSupabaseRetry } from '../lib/supabase';
 import { FiscalDoc } from '../types';
 import { useAuth } from '../App';
 import { deleteFiscalPhotos, getFiscalPhotoUrl, getFiscalPhotoUrls, uploadFiscalPhoto } from '../lib/services';
@@ -14,12 +14,33 @@ import { cn } from '../lib/utils';
 import {
   Receipt, Plus, Camera, X, Search, CreditCard, Calendar,
   AlertCircle, Trash2, CheckCircle2, User,
-  HardHat, Users, Edit2, Download, ChevronDown,
+  HardHat, Users, Edit2, Download, ChevronDown, XCircle, Loader2,
 } from 'lucide-react';
 import { Obra, Operator } from '../types';
 
 const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 const DESPESAS_OPTIONS = ['Almoço', 'Jantar', 'Café', 'Estacionamento', 'Hospedagem', 'Material', 'Abastecimento', 'Outros'];
+const FISCAL_REVIEWER_EMAIL = 'contasapagar@exsergia.eng.br';
+type FiscalApprovalStatus = NonNullable<FiscalDoc['approvalStatus']>;
+type FiscalRejectionReason = NonNullable<FiscalDoc['rejectionReason']>;
+
+const APPROVAL_STATUS_META: Record<FiscalApprovalStatus, { label: string; className: string }> = {
+  pending: { label: 'Aguardando aprovação', className: 'bg-amber-100 text-amber-800 border-amber-200' },
+  approved: { label: 'Aprovada', className: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+  rejected: { label: 'Reprovada', className: 'bg-red-100 text-red-800 border-red-200' },
+};
+
+const REJECTION_REASON_LABELS: Record<FiscalRejectionReason, string> = {
+  dados_nao_condizentes: 'Dados não condizentes',
+  imagem_nao_legivel: 'Imagem não legível',
+};
+
+const getApprovalStatus = (fiscalDoc: FiscalDoc): FiscalApprovalStatus => {
+  const status = fiscalDoc.approvalStatus;
+  return status === 'approved' || status === 'rejected' || status === 'pending'
+    ? status
+    : 'pending';
+};
 
 const formatBytes = (bytes?: number) => {
   const value = Number(bytes || 0);
@@ -86,8 +107,11 @@ type FiscalDraft = {
 export default function NotasFiscais() {
   const { userProfile, isAdmin, notify } = useAuth();
   const currentUserId = userProfile?.id || auth.currentUser?.id || '';
-  const [docsSnap, loading, docsError] = useCollection(
-    isAdmin
+  const currentUserEmail = (userProfile?.email || auth.currentUser?.email || '').trim().toLowerCase();
+  const canReviewFiscal = currentUserEmail === FISCAL_REVIEWER_EMAIL;
+  const canViewAllFiscal = isAdmin || canReviewFiscal;
+  const [docsSnap, loading, docsError, refetchDocs] = useCollection(
+    canViewAllFiscal
       ? query(collection(db, 'fiscal_docs'), orderBy('createdAt', 'desc'))
       : currentUserId
         ? query(collection(db, 'fiscal_docs'), where('criadoPorId', '==', currentUserId), orderBy('createdAt', 'desc'))
@@ -100,6 +124,10 @@ export default function NotasFiscais() {
   const [pessoaFilter, setPessoaFilter] = useState('Todas');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [approvalFilter, setApprovalFilter] = useState<'all' | FiscalApprovalStatus>('all');
+  const [reviewingDocId, setReviewingDocId] = useState('');
+  const [rejectingDoc, setRejectingDoc] = useState<FiscalDoc | null>(null);
+  const [rejectionReason, setRejectionReason] = useState<FiscalRejectionReason | ''>('');
   const [fiscalThumbUrls, setFiscalThumbUrls] = useState<Record<string, string>>({});
 
   const docs = (docsSnap?.docs.map(d => ({ id: d.id, ...d.data() })) as FiscalDoc[]) || [];
@@ -171,6 +199,7 @@ export default function NotasFiscais() {
     const matchesObra = obraFilter === 'Todas' || obraKey === obraFilter;
     const matchesPessoa = pessoaFilter === 'Todas' || pessoas.some(nome => nome === pessoaFilter);
     const matchesDate = isDateInSelectedRange(d.data);
+    const matchesApproval = approvalFilter === 'all' || getApprovalStatus(d) === approvalFilter;
     const matchesSearch = !q || (
       (d.fornecedor || '').toLowerCase().includes(q) ||
       (d.observacoes || '').toLowerCase().includes(q) ||
@@ -183,6 +212,7 @@ export default function NotasFiscais() {
       matchesObra &&
       matchesPessoa &&
       matchesDate &&
+      matchesApproval &&
       matchesSearch
     );
   });
@@ -206,6 +236,40 @@ export default function NotasFiscais() {
     }
   };
 
+  const handleFiscalReview = async (
+    fiscalDoc: FiscalDoc,
+    decision: 'approved' | 'rejected',
+    reason?: FiscalRejectionReason
+  ) => {
+    if (!canReviewFiscal || reviewingDocId) return;
+
+    setReviewingDocId(fiscalDoc.id);
+    try {
+      const { error } = await withSupabaseRetry(() => supabase.rpc('review_fiscal_doc', {
+        p_fiscal_doc_id: fiscalDoc.id,
+        p_decision: decision,
+        p_rejection_reason: decision === 'rejected' ? reason : null,
+      }));
+      if (error) throw error;
+
+      await refetchDocs();
+      setRejectingDoc(null);
+      setRejectionReason('');
+      notify(
+        'success',
+        decision === 'approved' ? 'Documento aprovado' : 'Documento reprovado',
+        decision === 'approved'
+          ? 'A nota ou cupom fiscal foi aprovado.'
+          : `Motivo: ${reason ? REJECTION_REASON_LABELS[reason] : 'não informado'}.`
+      );
+    } catch (err: any) {
+      notify('error', 'Não foi possível revisar', err?.message || 'Tente novamente.');
+      handleFirestoreError(err, OperationType.UPDATE, 'fiscal_docs');
+    } finally {
+      setReviewingDocId('');
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20 animate-in fade-in duration-500">
       <div data-tour="nf-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -222,7 +286,7 @@ export default function NotasFiscais() {
         </button>
       </div>
 
-      {isAdmin ? (
+      {canViewAllFiscal ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_170px_170px_220px_220px_auto] gap-3 items-end">
           <div data-tour="nf-search" className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
@@ -305,7 +369,7 @@ export default function NotasFiscais() {
         </div>
       )}
 
-      {!isAdmin && (
+      {!canViewAllFiscal && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_170px_170px_auto] gap-3 items-end">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
@@ -352,6 +416,37 @@ export default function NotasFiscais() {
         </div>
       )}
 
+      {canReviewFiscal && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm">
+          <span className="px-1 text-[10px] font-black uppercase tracking-widest text-zinc-400">Aprovação</span>
+          {([
+            ['all', 'Todas'],
+            ['pending', 'Pendentes'],
+            ['approved', 'Aprovadas'],
+            ['rejected', 'Reprovadas'],
+          ] as const).map(([value, label]) => {
+            const count = value === 'all'
+              ? docs.length
+              : docs.filter(item => getApprovalStatus(item) === value).length;
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setApprovalFilter(value)}
+                className={cn(
+                  'rounded-xl px-3 py-2 text-xs font-bold transition-colors',
+                  approvalFilter === value
+                    ? 'bg-zinc-900 text-white'
+                    : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                )}
+              >
+                {label} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {docsError ? (
         <FiscalLoadError title="Erro ao carregar documentos fiscais" message={docsError.message} />
       ) : loading ? (
@@ -372,6 +467,8 @@ export default function NotasFiscais() {
             const previewUrl = d.thumbnailPath || d.fotoPath ? fiscalThumbUrls[d.id] : d.fotoUrl;
             const hasImage = Boolean(d.fotoPath || d.fotoUrl);
             const canEdit = isAdmin || Boolean(currentUserId && d.criadoPorId === currentUserId);
+            const approvalStatus = getApprovalStatus(d);
+            const approvalMeta = APPROVAL_STATUS_META[approvalStatus];
             return (
               <div key={d.id} className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden group">
                 <div className="relative aspect-video bg-zinc-100">
@@ -384,10 +481,16 @@ export default function NotasFiscais() {
                   ) : (
                     <div className="w-full h-full flex items-center justify-center"><Receipt className="w-8 h-8 text-zinc-300" /></div>
                   )}
-                  <span className={cn(
-                    'absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider',
-                    d.tipo === 'NF' ? 'bg-blue-600 text-white' : 'bg-amber-500 text-white'
-                  )}>{d.tipo}</span>
+                  <div className="absolute top-2 left-2 right-12 flex flex-wrap items-center gap-1">
+                    <span className={cn(
+                      'px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider',
+                      d.tipo === 'NF' ? 'bg-blue-600 text-white' : 'bg-amber-500 text-white'
+                    )}>{d.tipo}</span>
+                    <span className={cn(
+                      'px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-wider backdrop-blur-sm',
+                      approvalMeta.className
+                    )}>{approvalMeta.label}</span>
+                  </div>
                   {hasImage && (
                     <button
                       type="button"
@@ -413,12 +516,44 @@ export default function NotasFiscais() {
                   {d.obraNome && <p className="text-xs text-zinc-600 break-words flex items-center gap-1"><HardHat className="w-3 h-3 text-zinc-400" />{d.obraNome}</p>}
                   {(d.operadoresPresentes?.length || 0) > 0 && <p className="text-[11px] text-zinc-500 break-words flex items-center gap-1"><Users className="w-3 h-3 text-zinc-400" />{d.operadoresPresentes!.map(p => p.nome).join(', ')}</p>}
                   {d.observacoes && <p className="text-[11px] text-zinc-400 break-words">{d.observacoes}</p>}
+                  {approvalStatus === 'rejected' && d.rejectionReason && (
+                    <div className="flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                      <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>Motivo: {REJECTION_REASON_LABELS[d.rejectionReason]}</span>
+                    </div>
+                  )}
                   {(d.fotoSizeBytes || d.fotoStorageSizeBytes || d.thumbnailSizeBytes) && (
                     <p className="text-[10px] text-zinc-400 break-words">
                       Imagem: {[formatBytes(d.fotoSizeBytes), formatBytes(d.fotoStorageSizeBytes), formatBytes(d.thumbnailSizeBytes)]
                         .filter(Boolean)
                         .join(' / ')}
                     </p>
+                  )}
+                  {canReviewFiscal && (
+                    <div className="grid grid-cols-2 gap-2 pt-2">
+                      <button
+                        type="button"
+                        disabled={Boolean(reviewingDocId) || approvalStatus === 'approved'}
+                        onClick={() => handleFiscalReview(d, 'approved')}
+                        className="flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        {reviewingDocId === d.id
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <CheckCircle2 className="h-3.5 w-3.5" />}
+                        {approvalStatus === 'approved' ? 'Aprovada' : 'Aprovar'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={Boolean(reviewingDocId)}
+                        onClick={() => {
+                          setRejectingDoc(d);
+                          setRejectionReason(d.rejectionReason || '');
+                        }}
+                        className="flex items-center justify-center gap-1.5 rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        <XCircle className="h-3.5 w-3.5" /> Reprovar
+                      </button>
+                    </div>
                   )}
                   <div className="flex items-center justify-between pt-1 gap-2">
                     <span className="text-[10px] text-zinc-400 flex items-center gap-1 truncate"><User className="w-3 h-3" />{d.criadoPorNome || '—'}</span>
@@ -459,6 +594,68 @@ export default function NotasFiscais() {
             notify('success', isEdit ? 'Atualizado' : 'Lançado', isEdit ? 'Documento fiscal atualizado.' : 'Documento fiscal registrado.');
           }}
         />
+      )}
+
+      {rejectingDoc && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-black text-zinc-900">Reprovar documento fiscal</h3>
+                <p className="mt-1 text-sm text-zinc-500">Selecione o motivo da reprovação.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setRejectingDoc(null); setRejectionReason(''); }}
+                className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+                aria-label="Fechar"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {(Object.entries(REJECTION_REASON_LABELS) as [FiscalRejectionReason, string][]).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setRejectionReason(value)}
+                  className={cn(
+                    'flex w-full items-center gap-3 rounded-2xl border p-4 text-left text-sm font-bold transition-colors',
+                    rejectionReason === value
+                      ? 'border-red-500 bg-red-50 text-red-800'
+                      : 'border-zinc-200 text-zinc-700 hover:bg-zinc-50'
+                  )}
+                >
+                  <span className={cn(
+                    'h-4 w-4 rounded-full border-4',
+                    rejectionReason === value ? 'border-red-600 bg-white' : 'border-zinc-300 bg-white'
+                  )} />
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => { setRejectingDoc(null); setRejectionReason(''); }}
+                className="rounded-xl border border-zinc-200 px-4 py-3 text-sm font-bold text-zinc-600 hover:bg-zinc-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!rejectionReason || reviewingDocId === rejectingDoc.id}
+                onClick={() => rejectionReason && handleFiscalReview(rejectingDoc, 'rejected', rejectionReason)}
+                className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {reviewingDocId === rejectingDoc.id && <Loader2 className="h-4 w-4 animate-spin" />}
+                Confirmar reprovação
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

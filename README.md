@@ -173,6 +173,18 @@ Ela retorna:
 
 O resultado é salvo em `fiscal_docs.data.aiAnalysis`.
 
+## Aprovação fiscal
+
+Toda NF ou Cupom Fiscal novo entra com o status `pending`. Somente o usuário
+`contasapagar@exsergia.eng.br` pode aprovar ou reprovar o documento pela tela
+NF / Cupom Fiscal. Os motivos de reprovação disponíveis são dados não
+condizentes e imagem não legível.
+
+Uma alteração nos dados ou na imagem de um documento já revisado limpa a
+decisão anterior e devolve o lançamento ao status pendente. A autorização é
+validada no banco pela função `review_fiscal_doc`; a verificação da interface
+não substitui essa proteção.
+
 ## Notificação de nova Nota Fiscal
 
 Quando um registro do tipo `NF` ou `Cupom` é inserido em `fiscal_docs`, o banco chama a Edge Function

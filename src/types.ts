@@ -167,6 +167,11 @@ export interface FiscalDoc {
   operadoresPresentes?: { id: string; nome: string }[]; // quem estava presente
   criadoPorNome?: string;
   criadoPorId?: string;
+  approvalStatus?: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: 'dados_nao_condizentes' | 'imagem_nao_legivel';
+  reviewedById?: string;
+  reviewedByEmail?: string;
+  reviewedAt?: any;
   aiAnalysis?: FiscalAiAnalysis;
   createdAt: any;
 }
