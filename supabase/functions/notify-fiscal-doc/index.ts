@@ -286,14 +286,8 @@ Deno.serve(async (req) => {
     }
 
     const recipientUserId = cleanText(fiscalDoc.criadoPorId, '', 100);
-    const rejectionReason = cleanText(fiscalDoc.rejectionReason, '', 80).toLowerCase();
-    const rejectionReasonLabel = rejectionReason === 'imagem_nao_legivel'
-      ? 'Imagem não legível'
-      : rejectionReason === 'dados_nao_condizentes'
-        ? 'Dados não condizentes'
-        : 'Motivo não informado';
     const title = isReceipt ? 'Cupom fiscal reprovado' : 'Nota fiscal reprovada';
-    const rejectionBody = `${isReceipt ? 'Seu cupom fiscal foi reprovado' : 'Sua nota fiscal foi reprovada'}. Motivo: ${rejectionReasonLabel}. Fale com o Financeiro (Ariane).`;
+    const rejectionBody = `${isReceipt ? 'Seu cupom fiscal foi reprovado' : 'Sua nota fiscal foi reprovada'}. Fale com o Financeiro (Ariane).`;
 
     try {
       const push = await sendFiscalRejectionPush({
