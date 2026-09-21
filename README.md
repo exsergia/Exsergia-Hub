@@ -176,7 +176,7 @@ O resultado é salvo em `fiscal_docs.data.aiAnalysis`.
 ## Aprovação fiscal
 
 Toda NF ou Cupom Fiscal novo entra com o status `pending`. Somente o usuário
-`contasapagar@exsergia.eng.br` pode aprovar ou reprovar o documento pela tela
+`contasapagar@exsergia.eng.br` e `nascimentoerick446@gmail.com` podem aprovar ou reprovar o documento pela tela
 NF / Cupom Fiscal. Os motivos de reprovação disponíveis são dados não
 condizentes e imagem não legível.
 

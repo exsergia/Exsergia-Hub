@@ -20,7 +20,10 @@ import { Obra, Operator } from '../types';
 
 const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 const DESPESAS_OPTIONS = ['Almoço', 'Jantar', 'Café', 'Estacionamento', 'Hospedagem', 'Material', 'Abastecimento', 'Outros'];
-const FISCAL_REVIEWER_EMAIL = 'contasapagar@exsergia.eng.br';
+const FISCAL_REVIEWER_EMAILS = [
+  'contasapagar@exsergia.eng.br',
+  'nascimentoerick446@gmail.com',
+];
 type FiscalApprovalStatus = NonNullable<FiscalDoc['approvalStatus']>;
 type FiscalRejectionReason = NonNullable<FiscalDoc['rejectionReason']>;
 
@@ -108,7 +111,7 @@ export default function NotasFiscais() {
   const { userProfile, isAdmin, notify } = useAuth();
   const currentUserId = userProfile?.id || auth.currentUser?.id || '';
   const currentUserEmail = (userProfile?.email || auth.currentUser?.email || '').trim().toLowerCase();
-  const canReviewFiscal = currentUserEmail === FISCAL_REVIEWER_EMAIL;
+  const canReviewFiscal = FISCAL_REVIEWER_EMAILS.includes(currentUserEmail);
   const canViewAllFiscal = isAdmin || canReviewFiscal;
   const [docsSnap, loading, docsError, refetchDocs] = useCollection(
     canViewAllFiscal
