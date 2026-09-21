@@ -1,4 +1,4 @@
-const CACHE_NAME = 'exsergia-app-v10';
+const CACHE_NAME = 'exsergia-app-v11';
 const CACHE_PREFIX = 'exsergia-app';
 const CORE_ASSETS = ['/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
 
@@ -92,14 +92,23 @@ self.addEventListener('push', (event) => {
   }
 
   const title = payload.title || 'Exsergia Hub';
+  const notificationTag = payload.tag || 'exsergia-notif';
+  const isFiscalNotification = notificationTag.startsWith('nota-fiscal-')
+    || notificationTag.startsWith('fiscal-reprovado-');
   const options = {
     body: payload.body || '',
     // Sem `icon` (ícone grande): no Android ele fica à direita e quebra/corta o
     // texto do corpo. Mantemos só o `badge` (ícone monocromático da barra de status).
     badge: '/icon-192.png',
-    tag: payload.tag || 'exsergia-notif',
+    tag: notificationTag,
     renotify: true,
     requireInteraction: true,
+    // Android e navegadores compativeis usam este padrao para destacar
+    // NF/Cupom. O som continua sendo o som de notificacao definido no aparelho.
+    ...(isFiscalNotification ? {
+      silent: false,
+      vibrate: [300, 120, 300, 120, 600],
+    } : {}),
     timestamp: Date.now(),
     data: { url: payload.url || '/' },
   };
