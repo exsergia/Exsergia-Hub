@@ -524,7 +524,7 @@ export default function NotasFiscais() {
                       <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                       <span>
                         Motivo: {REJECTION_REASON_LABELS[d.rejectionReason]}
-                        <strong className="mt-0.5 block">Fale com o Financeiro (Ariane).</strong>
+                        <strong className="mt-0.5 block">Fale com o Financeiro (Ariany).</strong>
                       </span>
                     </div>
                   )}

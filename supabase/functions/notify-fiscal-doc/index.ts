@@ -287,7 +287,7 @@ Deno.serve(async (req) => {
 
     const recipientUserId = cleanText(fiscalDoc.criadoPorId, '', 100);
     const title = isReceipt ? 'Cupom fiscal reprovado' : 'Nota fiscal reprovada';
-    const rejectionBody = `${isReceipt ? 'Seu cupom fiscal foi reprovado' : 'Sua nota fiscal foi reprovada'}. Fale com o Financeiro (Ariane).`;
+    const rejectionBody = `${isReceipt ? 'Seu cupom fiscal foi reprovado' : 'Sua nota fiscal foi reprovada'}. Fale com o Financeiro (Ariany).`;
 
     try {
       const push = await sendFiscalRejectionPush({

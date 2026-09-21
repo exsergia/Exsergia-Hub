@@ -50,7 +50,7 @@ export function PushNotificationSetup({ userId, notify }: Props) {
           notify(
             'success',
             'Notificações já estão ativadas',
-            'Este aparelho está pronto para receber os avisos destinados ao seu usuário.',
+            'Este celular ou computador está pronto para receber os avisos destinados ao seu usuário.',
           );
         }
         setState(registered ? 'enabled' : 'error');
@@ -84,7 +84,7 @@ export function PushNotificationSetup({ userId, notify }: Props) {
       notify(
         'success',
         'Notificações ativadas',
-        'Os avisos destinados ao seu usuário chegarão neste aparelho mesmo com o aplicativo fechado.',
+        'Os avisos destinados ao seu usuário chegarão neste celular ou computador mesmo com o aplicativo fechado.',
       );
     } finally {
       setBusy(false);
@@ -118,7 +118,7 @@ export function PushNotificationSetup({ userId, notify }: Props) {
         : {
             icon: <BellRing className="h-5 w-5" />,
             title: 'Ative as notificações do Exsergia',
-            body: 'Ative uma vez para receber no celular os avisos destinados ao seu usuário, mesmo sem abrir o aplicativo.',
+            body: 'Ative uma vez para receber neste celular ou computador os avisos destinados ao seu usuário, mesmo sem abrir o aplicativo.',
           };
 
   return (

@@ -226,7 +226,7 @@ function FiscalRejectionStartupAlert({ userId, notify }: { userId: string; notif
     const title = rejectedDocs.length === 1
       ? latestType === 'CUPOM' ? 'Seu cupom fiscal foi reprovado' : 'Sua nota fiscal foi reprovada'
       : `${rejectedDocs.length} documentos fiscais foram reprovados`;
-    notify('error', title, 'Abra NF/Cupom Fiscal e fale com o Financeiro (Ariane).');
+    notify('error', title, 'Abra NF/Cupom Fiscal e fale com o Financeiro (Ariany).');
   }, [docsSnap, error, loading, notify, userId]);
 
   return null;

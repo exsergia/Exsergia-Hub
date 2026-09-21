@@ -187,7 +187,7 @@ não substitui essa proteção.
 
 Quando um documento é reprovado, o banco chama a Edge Function de notificação
 para enviar Web Push ao usuário que fez o lançamento, orientando o colaborador
-a falar com o Financeiro (Ariane). O motivo permanece disponível dentro do sistema.
+a falar com o Financeiro (Ariany). O motivo permanece disponível dentro do sistema.
 
 ## Notificação de nova Nota Fiscal
 
