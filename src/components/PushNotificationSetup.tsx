@@ -9,6 +9,8 @@ type Props = {
   notify: (type: 'error' | 'success' | 'info' | 'warning', title: string, message?: string) => void;
 };
 
+const ACTIVATION_CAMPAIGN = 'push-activation-reminder-2026-09-v2';
+
 function isIosDevice() {
   return /iphone|ipad|ipod/i.test(navigator.userAgent);
 }
@@ -42,6 +44,15 @@ export function PushNotificationSetup({ userId, notify }: Props) {
     if (Notification.permission === 'granted') {
       try {
         const registered = await registerPushForUser(userId);
+        const campaignKey = `${ACTIVATION_CAMPAIGN}:${userId}`;
+        if (registered && localStorage.getItem(campaignKey) !== 'shown') {
+          localStorage.setItem(campaignKey, 'shown');
+          notify(
+            'success',
+            'Notificações já estão ativadas',
+            'Este aparelho está pronto para receber os avisos destinados ao seu usuário.',
+          );
+        }
         setState(registered ? 'enabled' : 'error');
       } catch {
         setState('error');
@@ -49,7 +60,7 @@ export function PushNotificationSetup({ userId, notify }: Props) {
       return;
     }
     setState('permission');
-  }, [ios, userId]);
+  }, [ios, notify, userId]);
 
   useEffect(() => {
     // O aviso aparece para todo usuário em cada nova abertura do aplicativo.
@@ -69,6 +80,7 @@ export function PushNotificationSetup({ userId, notify }: Props) {
       }
       setState('enabled');
       setHidden(true);
+      localStorage.setItem(`${ACTIVATION_CAMPAIGN}:${userId}`, 'shown');
       notify(
         'success',
         'Notificações ativadas',
@@ -110,7 +122,7 @@ export function PushNotificationSetup({ userId, notify }: Props) {
           };
 
   return (
-    <div className="fixed inset-x-3 bottom-3 z-[9998] mx-auto max-w-lg rounded-2xl border border-amber-200 bg-white p-4 shadow-2xl shadow-zinc-900/20 sm:bottom-5">
+    <div className="pointer-events-auto w-full max-w-lg rounded-2xl border border-amber-200 bg-white p-4 shadow-2xl shadow-zinc-900/20">
       <button
         type="button"
         onClick={remindLater}

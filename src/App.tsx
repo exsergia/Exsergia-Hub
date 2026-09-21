@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useContext, createContext } from 'react';
+import React, { useState, useEffect, useRef, useContext, createContext, useCallback, useMemo } from 'react';
 import { HashRouter as BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import {
   auth,
@@ -201,6 +201,37 @@ interface Notification {
   message?: string;
 }
 
+type Notify = (type: 'error' | 'success' | 'info' | 'warning', title: string, message?: string) => void;
+
+function FiscalRejectionStartupAlert({ userId, notify }: { userId: string; notify: Notify }) {
+  const alertedUserRef = useRef('');
+  const rejectedDocsQuery = useMemo(
+    () => userId
+      ? query(collection(db, 'fiscal_docs'), where('criadoPorId', '==', userId))
+      : null,
+    [userId],
+  );
+  const [docsSnap, loading, error] = useCollection(rejectedDocsQuery);
+
+  useEffect(() => {
+    if (!userId || loading || error || !docsSnap || alertedUserRef.current === userId) return;
+    alertedUserRef.current = userId;
+
+    const rejectedDocs = docsSnap.docs
+      .map((document: { data: () => Record<string, unknown> }) => document.data())
+      .filter((document: Record<string, unknown>) => String(document.approvalStatus || '').toLowerCase() === 'rejected');
+    if (rejectedDocs.length === 0) return;
+
+    const latestType = String(rejectedDocs[0]?.tipo || '').toUpperCase();
+    const title = rejectedDocs.length === 1
+      ? latestType === 'CUPOM' ? 'Seu cupom fiscal foi reprovado' : 'Sua nota fiscal foi reprovada'
+      : `${rejectedDocs.length} documentos fiscais foram reprovados`;
+    notify('error', title, 'Abra NF/Cupom Fiscal e fale com o Financeiro (Ariane).');
+  }, [docsSnap, error, loading, notify, userId]);
+
+  return null;
+}
+
 function NotificationToast({ notification, onClose }: { notification: Notification; onClose: () => void; key?: React.Key }) {
   const bgColor = {
     error: 'bg-red-50 border-red-200 text-red-800',
@@ -269,10 +300,10 @@ function App() {
     userProfileRef.current = userProfile;
   }, [userProfile]);
 
-  const notify = (type: 'error' | 'success' | 'info' | 'warning', title: string, message?: string) => {
+  const notify = useCallback<Notify>((type, title, message) => {
     const id = Math.random().toString(36).substring(7);
     setNotifications(prev => [...prev, { id, type, title, message }]);
-  };
+  }, []);
 
   const resolveUserProfile = async (u: SupabaseUser) => {
     profileUserIdRef.current = u.id;
@@ -483,7 +514,7 @@ function App() {
     <AuthContext.Provider value={{ user, userProfile, loading, isAdmin, isEncarregado, encarregadoObraIds, notify }}>
       <div className="relative">
         {/* Global Notifications Container */}
-        <div className="fixed bottom-4 right-4 z-[9999] flex flex-col items-end pointer-events-none w-full max-w-sm px-4">
+        <div className="fixed inset-x-0 bottom-3 z-[9999] flex flex-col items-center pointer-events-none px-3 sm:bottom-5">
           <AnimatePresence>
             {notifications.map(n => (
               <NotificationToast 
@@ -493,6 +524,12 @@ function App() {
               />
             ))}
           </AnimatePresence>
+          {user && !isRecovery && (
+            <>
+              <FiscalRejectionStartupAlert userId={userProfile?.id || user.id} notify={notify} />
+              <PushNotificationSetup userId={userProfile?.id || user.id} notify={notify} />
+            </>
+          )}
         </div>
 
         {isRecovery ? (
@@ -512,10 +549,6 @@ function App() {
           <BrowserRouter>
             <RouteTracker />
             <OverdueToolsAlert />
-            <PushNotificationSetup
-              userId={userProfile?.id || user.id}
-              notify={notify}
-            />
             <ErrorBoundary>
               <Layout>
                 <React.Suspense fallback={<PageLoader />}>
