@@ -514,7 +514,6 @@ function App() {
             <OverdueToolsAlert />
             <PushNotificationSetup
               userId={userProfile?.id || user.id}
-              userEmail={userProfile?.email || user.email || ''}
               notify={notify}
             />
             <ErrorBoundary>

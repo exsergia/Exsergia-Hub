@@ -6,11 +6,8 @@ type SetupState = 'checking' | 'permission' | 'install-ios' | 'blocked' | 'error
 
 type Props = {
   userId: string;
-  userEmail?: string;
   notify: (type: 'error' | 'success' | 'info' | 'warning', title: string, message?: string) => void;
 };
-
-const SNOOZE_KEY = 'push-setup-remind-after';
 
 function isIosDevice() {
   return /iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -21,15 +18,11 @@ function isStandaloneApp() {
     || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
 }
 
-export function PushNotificationSetup({ userId, userEmail, notify }: Props) {
+export function PushNotificationSetup({ userId, notify }: Props) {
   const [state, setState] = useState<SetupState>('checking');
   const [busy, setBusy] = useState(false);
   const [hidden, setHidden] = useState(false);
   const ios = useMemo(() => isIosDevice(), []);
-  const receivesFiscalPush = [
-    'contasapagar@exsergia.eng.br',
-    'nascimentoerick446@gmail.com',
-  ].includes(userEmail?.trim().toLowerCase() || '');
 
   const check = useCallback(async () => {
     if (!userId) return;
@@ -47,16 +40,21 @@ export function PushNotificationSetup({ userId, userEmail, notify }: Props) {
       return;
     }
     if (Notification.permission === 'granted') {
-      const registered = await registerPushForUser(userId);
-      setState(registered ? 'enabled' : 'error');
+      try {
+        const registered = await registerPushForUser(userId);
+        setState(registered ? 'enabled' : 'error');
+      } catch {
+        setState('error');
+      }
       return;
     }
     setState('permission');
   }, [ios, userId]);
 
   useEffect(() => {
-    const remindAfter = Number(localStorage.getItem(SNOOZE_KEY) || 0);
-    if (remindAfter > Date.now()) setHidden(true);
+    // O aviso aparece para todo usuário em cada nova abertura do aplicativo.
+    // Fechá-lo oculta o aviso somente durante a sessão atual.
+    setHidden(false);
     check();
   }, [check]);
 
@@ -71,13 +69,10 @@ export function PushNotificationSetup({ userId, userEmail, notify }: Props) {
       }
       setState('enabled');
       setHidden(true);
-      localStorage.removeItem(SNOOZE_KEY);
       notify(
         'success',
         'Notificações ativadas',
-        receivesFiscalPush
-          ? 'As novas notas fiscais chegarão neste aparelho mesmo com o aplicativo fechado.'
-          : 'Os atrasos de ferramentas e os retornos das suas notinhas chegarão neste aparelho mesmo com o aplicativo fechado.',
+        'Os avisos destinados ao seu usuário chegarão neste aparelho mesmo com o aplicativo fechado.',
       );
     } finally {
       setBusy(false);
@@ -85,7 +80,6 @@ export function PushNotificationSetup({ userId, userEmail, notify }: Props) {
   };
 
   const remindLater = () => {
-    localStorage.setItem(SNOOZE_KEY, String(Date.now() + 24 * 60 * 60 * 1000));
     setHidden(true);
   };
 
@@ -101,7 +95,7 @@ export function PushNotificationSetup({ userId, userEmail, notify }: Props) {
       ? {
           icon: <Settings className="h-5 w-5" />,
           title: 'Notificações bloqueadas',
-          body: 'Libere as notificações do Exsergia nas configurações do navegador ou do celular para receber os atrasos.',
+          body: 'Libere as notificações do Exsergia nas configurações do navegador ou do celular para receber os avisos.',
         }
       : state === 'error'
         ? {
@@ -109,13 +103,11 @@ export function PushNotificationSetup({ userId, userEmail, notify }: Props) {
             title: 'Não foi possível registrar este aparelho',
             body: 'Verifique a conexão e tente ativar novamente.',
           }
-      : {
-          icon: <BellRing className="h-5 w-5" />,
-          title: receivesFiscalPush ? 'Receba notas fiscais no celular' : 'Receba avisos no celular',
-          body: receivesFiscalPush
-            ? 'Ative uma vez para ser avisado quando uma nova nota fiscal for lançada, mesmo sem abrir o aplicativo.'
-            : 'Ative uma vez para receber atrasos de ferramentas e o retorno das suas NF/Cupons mesmo sem abrir o aplicativo.',
-        };
+        : {
+            icon: <BellRing className="h-5 w-5" />,
+            title: 'Ative as notificações do Exsergia',
+            body: 'Ative uma vez para receber no celular os avisos destinados ao seu usuário, mesmo sem abrir o aplicativo.',
+          };
 
   return (
     <div className="fixed inset-x-3 bottom-3 z-[9998] mx-auto max-w-lg rounded-2xl border border-amber-200 bg-white p-4 shadow-2xl shadow-zinc-900/20 sm:bottom-5">
