@@ -501,6 +501,8 @@ function App() {
   const isEncarregado = userProfile?.role === 'encarregado';
   const canFiscal = !!user;
   const canReports = isAdmin || canAccessReportsByEmail(userProfile?.email || user?.email || '');
+  const userEmail = normalizeLoginEmail(userProfile?.email || user?.email || '');
+  const shouldOfferPushNotifications = userEmail !== 'flavio.nascimento@exsergia.eng.br';
 
   if (loading) {
     return (
@@ -527,7 +529,9 @@ function App() {
           {user && !isRecovery && (
             <>
               <FiscalRejectionStartupAlert userId={userProfile?.id || user.id} notify={notify} />
-              <PushNotificationSetup userId={userProfile?.id || user.id} notify={notify} />
+              {shouldOfferPushNotifications && (
+                <PushNotificationSetup userId={userProfile?.id || user.id} notify={notify} />
+              )}
             </>
           )}
         </div>
