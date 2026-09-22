@@ -179,7 +179,7 @@ export function PageIntro() {
         onClick={start}
         title="Fazer o tour desta tela"
         aria-label="Fazer o tour desta tela"
-        className="fixed bottom-4 left-4 z-30 w-11 h-11 rounded-full bg-zinc-900 text-white shadow-lg flex items-center justify-center hover:bg-zinc-800 active:scale-95 transition-all"
+        className="fixed bottom-4 right-4 z-30 w-11 h-11 rounded-full bg-zinc-900 text-white shadow-lg flex items-center justify-center hover:bg-zinc-800 active:scale-95 transition-all"
       >
         <HelpCircle className="w-5 h-5" />
       </button>
