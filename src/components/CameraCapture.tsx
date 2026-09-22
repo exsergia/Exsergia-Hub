@@ -1,5 +1,5 @@
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
-import { Camera, Images, Loader2, X } from 'lucide-react';
+import { Camera, Loader2, X } from 'lucide-react';
 
 type CameraCaptureProps = {
   onCapture: (file: File) => void;
@@ -17,7 +17,6 @@ type CameraCaptureProps = {
  */
 export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
-  const galleryInputRef = useRef<HTMLInputElement>(null);
   const attemptedOpenRef = useRef(false);
   const [opening, setOpening] = useState(true);
   const [error, setError] = useState('');
@@ -80,7 +79,7 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
           <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{error}</p>
         )}
 
-        <div className="mt-6 space-y-3">
+        <div className="mt-6">
           <button
             type="button"
             onClick={openCamera}
@@ -90,13 +89,6 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
             {opening ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
             {opening ? 'Abrindo câmera...' : 'Abrir câmera do celular'}
           </button>
-          <button
-            type="button"
-            onClick={() => galleryInputRef.current?.click()}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-bold text-zinc-700 transition-colors hover:bg-zinc-50"
-          >
-            <Images className="h-5 w-5" /> Escolher foto existente
-          </button>
         </div>
 
         <input
@@ -104,13 +96,6 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
           type="file"
           accept="image/*"
           capture="environment"
-          className="hidden"
-          onChange={useSelectedImage}
-        />
-        <input
-          ref={galleryInputRef}
-          type="file"
-          accept="image/*"
           className="hidden"
           onChange={useSelectedImage}
         />
