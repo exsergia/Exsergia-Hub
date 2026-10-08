@@ -124,6 +124,7 @@ export default function NotasFiscais() {
   const [editingDoc, setEditingDoc] = useState<FiscalDoc | null>(null);
   const [search, setSearch] = useState('');
   const [obraFilter, setObraFilter] = useState('Todas');
+  const [despesaFilter, setDespesaFilter] = useState('Todas');
   const [pessoaFilter, setPessoaFilter] = useState('Todas');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -182,6 +183,11 @@ export default function NotasFiscais() {
     }, new Set<string>())
   ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
+  const despesaOptions = Array.from(new Set([
+    ...DESPESAS_OPTIONS,
+    ...docs.map(d => (d.fornecedor || '').trim()).filter(Boolean),
+  ]));
+
   const isDateInSelectedRange = (value: any) => {
     if (!startDate && !endDate) return true;
     const d = parseDate(value);
@@ -200,6 +206,7 @@ export default function NotasFiscais() {
       ...(d.operadoresPresentes || []).map(p => p.nome || '')
     ];
     const matchesObra = obraFilter === 'Todas' || obraKey === obraFilter;
+    const matchesDespesa = despesaFilter === 'Todas' || d.fornecedor === despesaFilter;
     const matchesPessoa = pessoaFilter === 'Todas' || pessoas.some(nome => nome === pessoaFilter);
     const matchesDate = isDateInSelectedRange(d.data);
     const matchesApproval = approvalFilter === 'all' || getApprovalStatus(d) === approvalFilter;
@@ -213,6 +220,7 @@ export default function NotasFiscais() {
     );
     return (
       matchesObra &&
+      matchesDespesa &&
       matchesPessoa &&
       matchesDate &&
       matchesApproval &&
@@ -290,7 +298,7 @@ export default function NotasFiscais() {
       </div>
 
       {canViewAllFiscal ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_170px_170px_220px_220px_auto] gap-3 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_160px_160px_200px_190px_200px_auto] gap-3 items-end">
           <div data-tour="nf-search" className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
             <input
@@ -356,6 +364,20 @@ export default function NotasFiscais() {
               ))}
             </select>
           </div>
+          <div className="relative">
+            <Receipt className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+            <select
+              aria-label="Filtrar por centro de custo"
+              value={despesaFilter}
+              onChange={(e) => setDespesaFilter(e.target.value)}
+              className="w-full pl-10 pr-8 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm appearance-none"
+            >
+              <option value="Todas">Todos os centros de custo</option>
+              {despesaOptions.map(despesa => (
+                <option key={despesa} value={despesa}>{despesa}</option>
+              ))}
+            </select>
+          </div>
           <div data-tour="nf-total" className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 text-white rounded-xl shrink-0">
             <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Total</span>
             <span className="text-sm font-black">{brl(total)}</span>
@@ -374,7 +396,7 @@ export default function NotasFiscais() {
       )}
 
       {!canViewAllFiscal && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_170px_170px_220px_auto] gap-3 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_160px_160px_200px_190px_auto] gap-3 items-end">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
             <input
@@ -424,6 +446,20 @@ export default function NotasFiscais() {
               <option value="Todas">Todos os projetos</option>
               {obraOptions.map(([key, label]) => (
                 <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="relative">
+            <Receipt className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+            <select
+              aria-label="Filtrar por centro de custo"
+              value={despesaFilter}
+              onChange={(e) => setDespesaFilter(e.target.value)}
+              className="w-full pl-10 pr-8 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm appearance-none"
+            >
+              <option value="Todas">Todos os centros de custo</option>
+              {despesaOptions.map(despesa => (
+                <option key={despesa} value={despesa}>{despesa}</option>
               ))}
             </select>
           </div>
