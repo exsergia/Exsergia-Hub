@@ -295,7 +295,7 @@ export default function NotasFiscais() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
             <input
               type="text"
-              placeholder="Buscar por despesa, cartao, tipo, obra ou pessoa..."
+              placeholder="Buscar por despesa, cartao, tipo, projeto ou pessoa..."
               className="w-full pl-10 pr-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -332,11 +332,12 @@ export default function NotasFiscais() {
           <div className="relative">
             <HardHat className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
             <select
+              aria-label="Filtrar por projeto"
               value={obraFilter}
               onChange={(e) => setObraFilter(e.target.value)}
               className="w-full pl-10 pr-8 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm appearance-none"
             >
-              <option value="Todas">Todas as obras</option>
+              <option value="Todas">Todos os projetos</option>
               {obraOptions.map(([key, label]) => (
                 <option key={key} value={key}>{label}</option>
               ))}
@@ -373,7 +374,7 @@ export default function NotasFiscais() {
       )}
 
       {!canViewAllFiscal && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_170px_170px_auto] gap-3 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_170px_170px_220px_auto] gap-3 items-end">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
             <input
@@ -411,6 +412,20 @@ export default function NotasFiscais() {
                 onChange={(e) => setEndDate(e.target.value)}
               />
             </div>
+          </div>
+          <div className="relative">
+            <HardHat className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+            <select
+              aria-label="Filtrar por projeto"
+              value={obraFilter}
+              onChange={(e) => setObraFilter(e.target.value)}
+              className="w-full pl-10 pr-8 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm appearance-none"
+            >
+              <option value="Todas">Todos os projetos</option>
+              {obraOptions.map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
           </div>
           <div className="flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-900 text-white rounded-xl shrink-0">
             <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Meu total</span>
