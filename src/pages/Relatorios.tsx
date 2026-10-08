@@ -52,6 +52,8 @@ import { parseDateSafe as parseDate } from '../lib/dateUtils';
 
 type RelatorioTab = 'diarios' | 'ferramentas' | 'frota' | 'fiscal' | 'bi';
 
+const FISCAL_EXPENSE_OPTIONS = ['Almoço', 'Jantar', 'Café', 'Estacionamento', 'Hospedagem', 'Material', 'Abastecimento', 'Outros'];
+
 function getToolUsagePlan(log: ToolLog) {
   const diasUso = Number(log.diasUso || 0);
   const saida = parseDate(log.dataSaida);
@@ -148,6 +150,7 @@ export default function Relatorios() {
   const [search, setSearch] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [fiscalExpenseFilter, setFiscalExpenseFilter] = useState('Todas');
   const [toolCategoryFilter, setToolCategoryFilter] = useState('Todas');
   const [toolStatusFilter, setToolStatusFilter] = useState('Todos');
   const [toolLocationFilter, setToolLocationFilter] = useState('Todos');
@@ -165,6 +168,10 @@ export default function Relatorios() {
   const vehicleLogs = (vehicleLogsSnap?.docs.map(doc => ({ id: doc.id, ...doc.data() })) as VehicleLog[]) || [];
   const progressoDiario = (progressoDiarioSnap?.docs.map(doc => ({ id: doc.id, ...doc.data() }))) || [];
   const fiscalDocs = (fiscalSnap?.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FiscalDoc[]) || [];
+  const fiscalExpenseOptions = Array.from(new Set([
+    ...FISCAL_EXPENSE_OPTIONS,
+    ...fiscalDocs.map(f => (f.fornecedor || '').trim()).filter(Boolean),
+  ]));
   const loadError = checklistsError || obrasError || materiaisError || atividadesError || operadoresError || toolsError || toolLogsError || vehiclesError || vehicleLogsError || progressoDiarioError || fiscalError;
   const [fiscalThumbUrls, setFiscalThumbUrls] = useState<Record<string, string>>({});
 
@@ -327,6 +334,7 @@ export default function Relatorios() {
   });
 
   const filteredFiscal = fiscalDocs.filter(f => {
+    if (fiscalExpenseFilter !== 'Todas' && f.fornecedor !== fiscalExpenseFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       if (!(
@@ -343,7 +351,7 @@ export default function Relatorios() {
   });
 
   const totalFiscal = filteredFiscal.reduce((acc, f) => acc + (f.valor || 0), 0);
-  const hasFiscalFilters = Boolean(search.trim() || startDate || endDate);
+  const hasFiscalFilters = Boolean(search.trim() || startDate || endDate || fiscalExpenseFilter !== 'Todas');
 
   const exportFiscalDocs = (docsToExport: FiscalDoc[], scope: 'filtradas' | 'todas') => {
     if (docsToExport.length === 0) {
@@ -710,7 +718,7 @@ export default function Relatorios() {
                   className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 rounded-xl text-xs sm:text-sm font-bold hover:bg-zinc-50 transition-all shadow-sm"
                 >
                   <Calendar className="w-4 h-4 shrink-0" />
-                  Exportar periodo
+                  Exportar filtradas
                 </button>
               )}
               <button
@@ -748,6 +756,7 @@ export default function Relatorios() {
               setSearch('');
               setStartDate('');
               setEndDate('');
+              setFiscalExpenseFilter('Todas');
               setSelectedChecklist(null);
               setToolCategoryFilter('Todas');
               setToolStatusFilter('Todos');
@@ -832,11 +841,34 @@ export default function Relatorios() {
               />
             </div>
           </div>
-          {(startDate || endDate) && (
+          {activeTab === 'fiscal' && (
+            <div className="flex-1 sm:flex-none space-y-1">
+              <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">Centro de custo</label>
+              <div className="relative">
+                <Receipt className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+                <select
+                  aria-label="Filtrar por centro de custo"
+                  value={fiscalExpenseFilter}
+                  onChange={(e) => setFiscalExpenseFilter(e.target.value)}
+                  className="w-full sm:w-56 pl-9 pr-8 py-3 bg-white border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm transition-all appearance-none"
+                >
+                  <option value="Todas">Todos</option>
+                  {fiscalExpenseOptions.map(expense => (
+                    <option key={expense} value={expense}>{expense}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+          {(startDate || endDate || (activeTab === 'fiscal' && fiscalExpenseFilter !== 'Todas')) && (
             <button
-              onClick={() => { setStartDate(''); setEndDate(''); }}
+              onClick={() => {
+                setStartDate('');
+                setEndDate('');
+                setFiscalExpenseFilter('Todas');
+              }}
               className="p-3 bg-white border border-zinc-200 rounded-xl text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 shadow-sm transition-all"
-              title="Limpar filtro de período"
+              title="Limpar filtros"
             >
               <XIcon className="w-4 h-4" />
             </button>
