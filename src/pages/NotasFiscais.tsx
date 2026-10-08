@@ -19,11 +19,6 @@ import {
 import { Obra, Operator } from '../types';
 
 const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
-const normalizeFilterText = (value: string) => value
-  .normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '')
-  .toLowerCase()
-  .trim();
 const DESPESAS_OPTIONS = ['Almoço', 'Jantar', 'Café', 'Estacionamento', 'Hospedagem', 'Material', 'Abastecimento', 'Outros'];
 const FISCAL_REVIEWER_EMAILS = [
   'contasapagar@exsergia.eng.br',
@@ -128,7 +123,7 @@ export default function NotasFiscais() {
   const [showModal, setShowModal] = useState(false);
   const [editingDoc, setEditingDoc] = useState<FiscalDoc | null>(null);
   const [search, setSearch] = useState('');
-  const [projetoFilter, setProjetoFilter] = useState('');
+  const [obraFilter, setObraFilter] = useState('Todas');
   const [pessoaFilter, setPessoaFilter] = useState('Todas');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -199,14 +194,12 @@ export default function NotasFiscais() {
 
   const filtered = docs.filter(d => {
     const q = search.toLowerCase();
-    const projetoTerm = normalizeFilterText(projetoFilter);
+    const obraKey = d.obraId || d.obraNome || '';
     const pessoas = [
       d.criadoPorNome || '',
       ...(d.operadoresPresentes || []).map(p => p.nome || '')
     ];
-    const matchesObra = !projetoTerm ||
-      normalizeFilterText(d.obraNome || '').includes(projetoTerm) ||
-      normalizeFilterText(d.obraId || '').includes(projetoTerm);
+    const matchesObra = obraFilter === 'Todas' || obraKey === obraFilter;
     const matchesPessoa = pessoaFilter === 'Todas' || pessoas.some(nome => nome === pessoaFilter);
     const matchesDate = isDateInSelectedRange(d.data);
     const matchesApproval = approvalFilter === 'all' || getApprovalStatus(d) === approvalFilter;
@@ -338,20 +331,17 @@ export default function NotasFiscais() {
           </div>
           <div className="relative">
             <HardHat className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
-            <input
-              type="search"
-              list="fiscal-project-options"
-              aria-label="Pesquisar projeto"
-              placeholder="Pesquisar projeto..."
-              value={projetoFilter}
-              onChange={(e) => setProjetoFilter(e.target.value)}
-              className="w-full pl-10 pr-9 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm"
-            />
-            <datalist id="fiscal-project-options">
+            <select
+              aria-label="Filtrar por projeto"
+              value={obraFilter}
+              onChange={(e) => setObraFilter(e.target.value)}
+              className="w-full pl-10 pr-8 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm appearance-none"
+            >
+              <option value="Todas">Todos os projetos</option>
               {obraOptions.map(([key, label]) => (
-                <option key={key} value={label} />
+                <option key={key} value={key}>{label}</option>
               ))}
-            </datalist>
+            </select>
           </div>
           <div className="relative">
             <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
@@ -425,20 +415,17 @@ export default function NotasFiscais() {
           </div>
           <div className="relative">
             <HardHat className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
-            <input
-              type="search"
-              list="fiscal-project-options"
-              aria-label="Pesquisar projeto"
-              placeholder="Pesquisar projeto..."
-              value={projetoFilter}
-              onChange={(e) => setProjetoFilter(e.target.value)}
-              className="w-full pl-10 pr-9 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm"
-            />
-            <datalist id="fiscal-project-options">
+            <select
+              aria-label="Filtrar por projeto"
+              value={obraFilter}
+              onChange={(e) => setObraFilter(e.target.value)}
+              className="w-full pl-10 pr-8 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 shadow-sm appearance-none"
+            >
+              <option value="Todas">Todos os projetos</option>
               {obraOptions.map(([key, label]) => (
-                <option key={key} value={label} />
+                <option key={key} value={key}>{label}</option>
               ))}
-            </datalist>
+            </select>
           </div>
           <div className="flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-900 text-white rounded-xl shrink-0">
             <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Meu total</span>
