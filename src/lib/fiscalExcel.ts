@@ -64,23 +64,12 @@ const fiscalDateOnly = (value: unknown): string => {
   );
 };
 
-/**
- * Retorna a data sem barras para ser usada como referência de pagamento.
- *
- * Exemplo:
- * 31/07/2026 → 31072026
- */
-const fiscalPaymentReference = (value: unknown): string => {
-  const parsedDate = parseDate(value) || new Date();
+const fiscalPaymentReference = (doc: FiscalDoc): string => {
+  const value = String(doc.paymentReference || '').trim();
 
-  return format(
-    new Date(
-      parsedDate.getFullYear(),
-      parsedDate.getMonth(),
-      parsedDate.getDate()
-    ),
-    'ddMMyyyy'
-  );
+  if (!/^\d+$/.test(value)) return 'SEM REFERÊNCIA';
+
+  return value.padStart(6, '0');
 };
 
 const firstPartnerName = (doc: FiscalDoc) =>
@@ -101,7 +90,7 @@ export function buildFiscalInvoiceRows(
 ) {
   return fiscalDocs.map(doc => {
     const dateOnly = fiscalDateOnly(doc.data);
-    const paymentReference = fiscalPaymentReference(doc.data);
+    const paymentReference = fiscalPaymentReference(doc);
 
     const partnerName = normalize(firstPartnerName(doc));
     const obraNome =

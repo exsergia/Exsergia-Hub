@@ -149,6 +149,7 @@ export interface Checklist {
 // ── Frente 1: NF / Cupom Fiscal ────────────────────────────────────────────
 export interface FiscalDoc {
   id: string;
+  paymentReference?: string; // referência sequencial permanente (000001, 000002...)
   tipo: 'NF' | 'Cupom';
   fotoUrl?: string;           // legado/fallback: URL assinada antiga
   fotoPath?: string;          // caminho privado no Storage
