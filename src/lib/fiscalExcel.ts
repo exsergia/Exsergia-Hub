@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { FiscalDoc, Obra } from '../types';
 import { parseDate } from './dateUtils';
+import { resolveFiscalAccounting } from './fiscalAccounting';
 
 export const fiscalInvoiceHeaders = [
   'Referencia de pagamento ',
@@ -82,28 +83,6 @@ const fiscalPaymentReference = (value: unknown): string => {
   );
 };
 
-const fiscalProduct = (despesa?: string) => {
-  const value = normalize(despesa);
-
-  if (['ALMOCO', 'JANTAR', 'JANTA', 'CAFE'].includes(value)) {
-    return 'ALIMENTAÇÃO';
-  }
-
-  if (value === 'ESTACIONAMENTO') {
-    return 'ESTACIONAMENTO';
-  }
-
-  if (value === 'HOSPEDAGEM') {
-    return 'HOSPEDAGEM';
-  }
-
-  if (value === 'MATERIAL') {
-    return 'INSUMO PADRÃO';
-  }
-
-  return value || 'DESPESA';
-};
-
 const firstPartnerName = (doc: FiscalDoc) =>
   doc.criadoPorNome ||
   doc.operadoresPresentes?.find(operador => operador.nome)?.nome ||
@@ -130,6 +109,7 @@ export function buildFiscalInvoiceRows(
       obras.find(obra => obra.id === doc.obraId)?.nome ||
       '';
     const projetoCodigo = fiscalProjectCode(obraNome);
+    const accounting = resolveFiscalAccounting(doc.fornecedor);
 
     const termos = [
       projetoCodigo || 'SEM PROJETO',
@@ -149,10 +129,8 @@ export function buildFiscalInvoiceRows(
       [fiscalInvoiceHeaders[4]]: partnerName,
       [fiscalInvoiceHeaders[5]]: termos || 'SEM COLABORADOR',
       [fiscalInvoiceHeaders[6]]: obraNome.trim() || 'SEM PROJETO',
-      [fiscalInvoiceHeaders[7]]: fiscalProduct(doc.fornecedor),
-      [fiscalInvoiceHeaders[8]]: doc.cartaoFinal
-        ? `Cartão final ${doc.cartaoFinal}`
-        : 'SEM CONTA',
+      [fiscalInvoiceHeaders[7]]: accounting.productLine,
+      [fiscalInvoiceHeaders[8]]: accounting.accountPlan,
       [fiscalInvoiceHeaders[9]]: 1,
       [fiscalInvoiceHeaders[10]]: Number(doc.valor || 0),
     };

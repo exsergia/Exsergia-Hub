@@ -47,12 +47,11 @@ import { utils, read, writeFile } from 'xlsx';
 import { useAuth } from '../App';
 import { formatGeo, mapsUrl } from '../lib/geo';
 import { applyFiscalInvoiceSheetLayout, buildFiscalInvoiceRows, fiscalInvoiceHeaders } from '../lib/fiscalExcel';
+import { FISCAL_EXPENSE_OPTIONS } from '../lib/fiscalAccounting';
 
 import { parseDateSafe as parseDate } from '../lib/dateUtils';
 
 type RelatorioTab = 'diarios' | 'ferramentas' | 'frota' | 'fiscal' | 'bi';
-
-const FISCAL_EXPENSE_OPTIONS = ['Almoço', 'Jantar', 'Café', 'Estacionamento', 'Hospedagem', 'Material', 'Abastecimento', 'Outros'];
 
 function getToolUsagePlan(log: ToolLog) {
   const diasUso = Number(log.diasUso || 0);

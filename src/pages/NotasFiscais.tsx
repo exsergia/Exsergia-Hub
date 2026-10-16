@@ -11,6 +11,7 @@ import { useAutoSaveForm } from '../hooks/useAutoSaveForm';
 import { parseDate } from '../lib/dateUtils';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
+import { FISCAL_EXPENSE_OPTIONS } from '../lib/fiscalAccounting';
 import {
   Receipt, Plus, Camera, X, Search, CreditCard, Calendar,
   AlertCircle, Trash2, CheckCircle2, User,
@@ -19,7 +20,6 @@ import {
 import { Obra, Operator } from '../types';
 
 const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
-const DESPESAS_OPTIONS = ['Almoço', 'Jantar', 'Café', 'Estacionamento', 'Hospedagem', 'Material', 'Abastecimento', 'Outros'];
 const FISCAL_REVIEWER_EMAILS = [
   'contasapagar@exsergia.eng.br',
   'nascimentoerick446@gmail.com',
@@ -184,7 +184,7 @@ export default function NotasFiscais() {
   ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
   const despesaOptions = Array.from(new Set([
-    ...DESPESAS_OPTIONS,
+    ...FISCAL_EXPENSE_OPTIONS,
     ...docs.map(d => (d.fornecedor || '').trim()).filter(Boolean),
   ]));
 
@@ -1029,17 +1029,17 @@ function FiscalModal({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">Despesas</label>
+              <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">Tipo da despesa</label>
               <select
                 value={fornecedor}
                 onChange={e => setFornecedor(e.target.value)}
                 className="w-full min-h-12 px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:border-zinc-900"
               >
                 <option value="">Selecione a despesa</option>
-                {fornecedor && !DESPESAS_OPTIONS.includes(fornecedor) && (
+                {fornecedor && !(FISCAL_EXPENSE_OPTIONS as readonly string[]).includes(fornecedor) && (
                   <option value={fornecedor}>{fornecedor}</option>
                 )}
-                {DESPESAS_OPTIONS.map(opcao => (
+                {FISCAL_EXPENSE_OPTIONS.map(opcao => (
                   <option key={opcao} value={opcao}>{opcao}</option>
                 ))}
               </select>
