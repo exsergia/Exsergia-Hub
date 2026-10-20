@@ -1373,6 +1373,7 @@ function CheckOutModal({ tool, obras, onClose }: { tool: Tool, obras: Obra[], on
   const { userProfile, notify } = useAuth();
   const [obraId, setObraId] = useState('');
   const [isObraPickerOpen, setIsObraPickerOpen] = useState(false);
+  const [obraSearch, setObraSearch] = useState('');
   const [showScanner, setShowScanner] = useState(false);
   const userName = userProfile ? `${userProfile.nome} ${userProfile.sobrenome || ''}`.trim() : ((auth.currentUser?.user_metadata?.name || auth.currentUser?.email) || 'Usuário');
   const [responsavel] = useState(userName);
@@ -1381,6 +1382,22 @@ function CheckOutModal({ tool, obras, onClose }: { tool: Tool, obras: Obra[], on
   const [loading, setLoading] = useState(false);
   const obrasDisponiveis = obras.filter(obra => obra.status !== 'Concluída');
   const selectedObra = obrasDisponiveis.find(obra => obra.id === obraId);
+  const normalizedObraSearch = obraSearch
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+  const obrasFiltradas = obrasDisponiveis.filter(obra => {
+    if (!normalizedObraSearch) return true;
+
+    return [obra.nome, obra.centroCusto]
+      .filter(Boolean)
+      .some(value => String(value)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .includes(normalizedObraSearch));
+  });
 
   const handleCheckOut = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1513,13 +1530,19 @@ function CheckOutModal({ tool, obras, onClose }: { tool: Tool, obras: Obra[], on
                 <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
                 <button
                   type="button"
-                  onClick={() => setIsObraPickerOpen(open => !open)}
+                  onClick={() => {
+                    setIsObraPickerOpen(open => {
+                      if (!open) setObraSearch('');
+                      return !open;
+                    });
+                  }}
                   className="w-full min-h-[50px] pl-11 pr-10 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-zinc-900/10 outline-none text-left"
                 >
                   {selectedObra ? (
                     <span className="block leading-tight">
                       <span className="block text-sm font-bold text-zinc-900 whitespace-normal break-words">{selectedObra.nome}</span>
                       <span className="block mt-1 text-xs text-zinc-500 whitespace-normal break-words">
+                        {selectedObra.centroCusto ? `Projeto: ${selectedObra.centroCusto} • ` : ''}
                         Cliente: {(selectedObra.cliente || '').trim() || 'Não informado'}
                       </span>
                     </span>
@@ -1532,15 +1555,32 @@ function CheckOutModal({ tool, obras, onClose }: { tool: Tool, obras: Obra[], on
                 </div>
                 {isObraPickerOpen && (
                   <div className="absolute z-50 left-0 right-0 top-[calc(100%+6px)] max-h-64 overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-xl">
+                    <div className="sticky top-0 z-10 border-b border-zinc-200 bg-white p-2">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+                        <input
+                          type="search"
+                          autoFocus
+                          value={obraSearch}
+                          onChange={event => setObraSearch(event.target.value)}
+                          placeholder="Pesquisar por nome ou número..."
+                          aria-label="Pesquisar projeto por nome ou número"
+                          className="w-full rounded-lg border border-zinc-200 bg-zinc-50 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-900/10"
+                        />
+                      </div>
+                    </div>
                     {obrasDisponiveis.length === 0 ? (
                       <div className="px-4 py-3 text-sm text-zinc-500">Nenhuma obra ativa disponível.</div>
+                    ) : obrasFiltradas.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-zinc-500">Nenhum projeto encontrado para essa pesquisa.</div>
                     ) : (
-                      obrasDisponiveis.map(obra => (
+                      obrasFiltradas.map(obra => (
                         <button
                           key={obra.id}
                           type="button"
                           onClick={() => {
                             setObraId(obra.id);
+                            setObraSearch('');
                             setIsObraPickerOpen(false);
                           }}
                           className={cn(
@@ -1553,6 +1593,7 @@ function CheckOutModal({ tool, obras, onClose }: { tool: Tool, obras: Obra[], on
                             'block mt-1 text-xs whitespace-normal break-words',
                             obra.id === obraId ? 'text-zinc-300' : 'text-zinc-500'
                           )}>
+                            {obra.centroCusto ? `Projeto: ${obra.centroCusto} • ` : ''}
                             Cliente: {(obra.cliente || '').trim() || 'Não informado'}
                           </span>
                         </button>
