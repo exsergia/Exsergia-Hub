@@ -1,15 +1,19 @@
+export const FISCAL_MATERIAL_OPTIONS = [
+  'Material para projeto',
+  'Material para base – Gerador',
+  'Material para base – Veículo',
+  'Material predial',
+] as const;
+
 export const FISCAL_EXPENSE_OPTIONS = [
   'Abastecimento',
   'Estacionamento',
   'Almoço',
   'Café',
   'Jantar',
-  'Material para projeto',
-  'Material para base - Gerador',
-  'Material para base - Veículo',
-  'Material predial',
   'Hospedagem',
   'Cozinha',
+  ...FISCAL_MATERIAL_OPTIONS,
   'Outros',
 ] as const;
 
@@ -22,6 +26,7 @@ const normalizeExpense = (value?: string) =>
   (value || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[–—]/g, '-')
     .replace(/\s+/g, ' ')
     .trim()
     .toUpperCase();

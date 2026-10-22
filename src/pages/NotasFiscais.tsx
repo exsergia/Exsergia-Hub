@@ -11,7 +11,7 @@ import { useAutoSaveForm } from '../hooks/useAutoSaveForm';
 import { parseDate } from '../lib/dateUtils';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
-import { FISCAL_EXPENSE_OPTIONS } from '../lib/fiscalAccounting';
+import { FISCAL_EXPENSE_OPTIONS, FISCAL_MATERIAL_OPTIONS } from '../lib/fiscalAccounting';
 import {
   Receipt, Plus, Camera, X, Search, CreditCard, Calendar,
   AlertCircle, Trash2, CheckCircle2, User,
@@ -1033,15 +1033,24 @@ function FiscalModal({
               <select
                 value={fornecedor}
                 onChange={e => setFornecedor(e.target.value)}
-                className="w-full min-h-12 px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:border-zinc-900"
+                className="w-full max-w-full min-h-14 sm:min-h-12 px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl text-base sm:text-sm touch-manipulation focus:outline-none focus:border-zinc-900"
               >
                 <option value="">Selecione a despesa</option>
                 {fornecedor && !(FISCAL_EXPENSE_OPTIONS as readonly string[]).includes(fornecedor) && (
                   <option value={fornecedor}>{fornecedor}</option>
                 )}
-                {FISCAL_EXPENSE_OPTIONS.map(opcao => (
-                  <option key={opcao} value={opcao}>{opcao}</option>
-                ))}
+                <optgroup label="Despesas gerais">
+                  {FISCAL_EXPENSE_OPTIONS
+                    .filter(opcao => !(FISCAL_MATERIAL_OPTIONS as readonly string[]).includes(opcao))
+                    .map(opcao => (
+                      <option key={opcao} value={opcao}>{opcao}</option>
+                    ))}
+                </optgroup>
+                <optgroup label="Materiais">
+                  {FISCAL_MATERIAL_OPTIONS.map(opcao => (
+                    <option key={opcao} value={opcao}>{opcao}</option>
+                  ))}
+                </optgroup>
               </select>
             </div>
             <div className="space-y-2">
