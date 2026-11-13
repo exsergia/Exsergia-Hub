@@ -559,8 +559,14 @@ export default function NotasFiscais() {
                 <div className="p-4 space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-lg font-black text-zinc-900">{brl(d.valor)}</span>
-                    <span className="text-[11px] text-zinc-400 flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />{dt ? format(dt, 'dd/MM/yyyy') : '---'}
+                    <span className="flex flex-col items-end text-zinc-400">
+                      <span className="text-[9px]">Data do documento</span>
+                      <span className="flex items-center gap-1 text-[11px]">
+                        <Calendar className="w-3 h-3" />
+                        <time dateTime={dt ? format(dt, 'yyyy-MM-dd') : undefined}>
+                          {dt ? format(dt, 'dd/MM/yyyy') : '---'}
+                        </time>
+                      </span>
                     </span>
                   </div>
                   {d.fornecedor && <p className="text-xs text-zinc-600 break-words flex items-center gap-1"><Receipt className="w-3 h-3 text-zinc-400" />{d.fornecedor}</p>}
@@ -742,7 +748,7 @@ function FiscalModal({
   const fiscalDraftInitial: FiscalDraft = {
     tipo: 'Cupom',
     valor: '',
-    data: format(new Date(), 'yyyy-MM-dd'),
+    data: '',
     fornecedor: '',
     cartaoFinal: '',
     observacoes: '',
@@ -1021,9 +1027,12 @@ function FiscalModal({
                 className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm font-bold focus:outline-none focus:border-zinc-900" />
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">Data</label>
-              <input type="date" required className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:border-zinc-900"
+              <label htmlFor="fiscal-document-date" className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">Data da NF / Cupom</label>
+              <input id="fiscal-document-date" type="date" required aria-describedby="fiscal-document-date-help" className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:border-zinc-900"
                 value={data} onChange={e => setData(e.target.value)} />
+              <p id="fiscal-document-date-help" className="px-1 text-[11px] leading-relaxed text-zinc-500">
+                Informe a data impressa no documento, mesmo que o cadastro seja feito em outro dia.
+              </p>
             </div>
           </div>
 

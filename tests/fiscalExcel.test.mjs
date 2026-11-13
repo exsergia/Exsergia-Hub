@@ -52,6 +52,17 @@ test('Variações de alimentação e materiais antigos continuam reconhecidas', 
   assert.equal(resolveFiscalAccounting('Material').accountPlan, accountingCases[3][2]);
 });
 
+test('A data do documento é preservada quando o cadastro ocorre em outro dia', () => {
+  const [row] = buildFiscalInvoiceRows([{
+    ...documents[0],
+    data: '2026-11-05T15:00:00.000Z',
+    createdAt: '2026-11-13T18:30:00.000Z',
+  }], []);
+
+  assert.equal(row[fiscalInvoiceHeaders[2]], '05/11/2026');
+  assert.equal(row[fiscalInvoiceHeaders[3]], '05/11/2026');
+});
+
 test('O arquivo XLSX mantém Produto em G, Conta em H e Projeto em I para NF e Cupom', () => {
   const rows = buildFiscalInvoiceRows(documents, []);
   const sheet = XLSX.utils.json_to_sheet(rows, { header: fiscalInvoiceHeaders });
