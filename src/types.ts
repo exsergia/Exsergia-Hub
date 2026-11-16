@@ -237,6 +237,13 @@ export interface Equipamento {
 }
 
 export type ManutencaoTipo = 'Preventiva' | 'Corretiva' | 'Preditiva';
+export type ManutencaoPeriodicidade = 'mensal' | 'bimestral' | 'semestral' | 'avulsa';
+export type ManutencaoResultado = 'realizado' | 'nao_aplicavel' | 'pendente';
+export interface ManutencaoChecklistItem {
+  id: string;
+  descricao: string;
+  resultado: ManutencaoResultado;
+}
 
 export interface CustoItem {
   descricao: string;
@@ -255,6 +262,17 @@ export interface EquipamentoManutencao {
   outrosCustos: CustoItem[];  // deslocamento, combustível, terceiros, etc.
   custoTotal: number;         // mão de obra + peças + outros
   observacoes?: string;
+  periodicidade?: ManutencaoPeriodicidade;
+  servicoRealizado?: string;
+  checklist?: ManutencaoChecklistItem[];
+  checklistVersao?: number;
+  checklistCompleto?: boolean;
+  autorizacaoContratante?: boolean;
+  horimetro?: number | null;
+  responsavelNome?: string;
+  registradoPorId?: string;
+  registradoPorNome?: string;
+  custosInformados?: boolean;
   createdAt?: any;
 }
 

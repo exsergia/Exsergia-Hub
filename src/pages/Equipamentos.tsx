@@ -2,11 +2,12 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useCollection } from '../lib/supabaseHooks';
 import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from '../lib/supabaseDb';
 import { db, handleFirestoreError, OperationType } from '../lib/supabase';
-import { Equipamento, EquipamentoManutencao, EquipamentoLocacao, EquipamentoStatus, ManutencaoTipo, CustoItem } from '../types';
+import { Equipamento, EquipamentoManutencao, EquipamentoLocacao, EquipamentoStatus, ManutencaoTipo, CustoItem, ManutencaoPeriodicidade, ManutencaoResultado } from '../types';
 import { useAuth } from '../App';
 import { uploadPhoto } from '../lib/services';
 import { CameraCapture } from '../components/CameraCapture';
 import { CurrencyInput } from '../components/CurrencyInput';
+import { EquipmentMaintenanceOverview, MaintenanceCardSummary, MaintenanceChecklist, MaintenanceChecklistHistory } from '../components/EquipmentMaintenance';
 import { parseDate } from '../lib/dateUtils';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
@@ -15,6 +16,7 @@ import {
   buildEquipmentCatalogData, filterEquipmentCatalog, formatEquipmentMeasure,
   type EquipmentCatalogInput,
 } from '../lib/equipmentCatalog';
+import { buildMaintenanceDetails, GENERATOR_MAINTENANCE_PLANS, getLatestMaintenance, isGeneratorEquipment, MAINTENANCE_PERIODS, maintenanceLabel } from '../lib/equipmentMaintenance';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import {
   Boxes, Plus, X, ArrowLeft, Wrench, DollarSign, TrendingUp, TrendingDown,
@@ -63,7 +65,7 @@ export default function Equipamentos() {
   ), [isAdmin]);
 
   const [equipSnap, loading, equipError, refetchEquip] = useCollection(equipamentosQuery);
-  const [manutSnap, , manutError, refetchManut] = useCollection(manutencoesQuery);
+  const [manutSnap, manutLoading, manutError, refetchManut] = useCollection(manutencoesQuery);
   const [locSnap, , locError, refetchLoc] = useCollection(locacoesQuery);
 
   // Recarrega tudo na hora após uma gravação local (sem esperar o Realtime).
@@ -85,6 +87,15 @@ export default function Equipamentos() {
   const locacoes = (locSnap?.docs.map(d => ({ id: d.id, ...d.data() })) as EquipamentoLocacao[]) || [];
   const loadError = equipError || manutError || locError;
   const agora = useMemo(() => new Date(), []);
+
+  const latestMaintenanceById = useMemo(() => {
+    const latest: Record<string, EquipamentoManutencao | null> = {};
+    for (const record of manutencoes) {
+      const previous = latest[record.equipamentoId];
+      latest[record.equipamentoId] = getLatestMaintenance(previous ? [record, previous] : [record]);
+    }
+    return latest;
+  }, [manutencoes]);
 
   const financeById = useMemo(() => {
     const map: Record<string, Finance> = {};
@@ -171,6 +182,8 @@ export default function Equipamentos() {
         <EquipamentoDetalhe
           equipamento={current}
           manutencoes={manutencoes.filter(m => m.equipamentoId === current.id)}
+          maintenanceLoading={manutLoading}
+          maintenanceError={Boolean(manutError)}
           locacoes={locacoes.filter(l => l.equipamentoId === current.id)}
           onBack={() => setSelected(null)}
           onEdit={() => setEditing(current)}
@@ -281,6 +294,7 @@ export default function Equipamentos() {
                       {eq.autonomia != null && <span className="inline-flex items-center gap-1 rounded-lg bg-zinc-50 px-2 py-1"><Gauge className="h-3.5 w-3.5" />{formatEquipmentMeasure(eq.autonomia, eq.autonomiaUnidade)}</span>}
                     </div>
                   )}
+                  <MaintenanceCardSummary latest={latestMaintenanceById[eq.id]} loading={manutLoading} error={Boolean(manutError)} />
                   <div className="mt-4 grid grid-cols-2 xl:grid-cols-4 gap-2 text-left">
                     <div className="min-w-0 rounded-xl bg-zinc-50/70 px-2.5 py-2"><p className="text-[9px] font-bold text-zinc-400 uppercase">Receita</p><p className="text-[11px] sm:text-xs font-black text-green-600 break-words leading-tight">{brl(f?.receita || 0)}</p></div>
                     <div className="min-w-0 rounded-xl bg-zinc-50/70 px-2.5 py-2"><p className="text-[9px] font-bold text-zinc-400 uppercase">Custo</p><p className="text-[11px] sm:text-xs font-black text-red-500 break-words leading-tight">{brl(f?.custoTotal || 0)}</p></div>
@@ -308,8 +322,9 @@ export default function Equipamentos() {
 }
 
 // ── Detalhe ───────────────────────────────────────────────────────────────────
-function EquipamentoDetalhe({ equipamento, manutencoes, locacoes, onBack, onEdit, onChanged }: {
+function EquipamentoDetalhe({ equipamento, manutencoes, locacoes, maintenanceLoading, maintenanceError, onBack, onEdit, onChanged }: {
   equipamento: Equipamento; manutencoes: EquipamentoManutencao[]; locacoes: EquipamentoLocacao[];
+  maintenanceLoading?: boolean; maintenanceError?: boolean;
   onBack: () => void; onEdit: () => void; onChanged: () => void;
 }) {
   const { notify, isAdmin } = useAuth();
@@ -419,6 +434,8 @@ function EquipamentoDetalhe({ equipamento, manutencoes, locacoes, onBack, onEdit
       </div>
 
       <EquipmentTechnicalDetails equipamento={equipamento} />
+      <EquipmentMaintenanceOverview equipamento={equipamento} records={manutencoes} loading={maintenanceLoading}
+        error={maintenanceError} onAdd={() => setShowManut(true)} />
 
       {/* Filtro de período */}
       <div className="flex items-center gap-2">
@@ -460,28 +477,33 @@ function EquipamentoDetalhe({ equipamento, manutencoes, locacoes, onBack, onEdit
       </div>
 
       {/* Manutenções */}
-      <Section title={`Manutenções (${manutFiltradas.length})`} icon={<Wrench className="w-4 h-4 text-zinc-400" />}
+      <Section title={`Histórico de manutenções (${manutFiltradas.length})`} icon={<Wrench className="w-4 h-4 text-zinc-400" />}
         action={isAdmin ? <button onClick={() => setShowManut(true)} className="text-xs font-bold text-zinc-900 flex items-center gap-1"><Plus className="w-3.5 h-3.5" />Adicionar</button> : undefined}
         scrollable>
         {manutFiltradas.length === 0 ? <Empty texto="Nenhuma manutenção no período." /> : (
           <div className="divide-y divide-zinc-100">
             {manutFiltradas.sort((a, b) => (parseDate(b.data)?.getTime() || 0) - (parseDate(a.data)?.getTime() || 0)).map(m => (
-              <div key={m.id} className="p-4 flex items-start justify-between gap-3">
-                <div className="min-w-0">
+              <div key={m.id} className="p-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={cn('px-2 py-0.5 rounded text-[9px] font-bold uppercase',
                       m.tipo === 'Corretiva' ? 'bg-red-50 text-red-600' : m.tipo === 'Preditiva' ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600')}>{m.tipo}</span>
+                    {m.periodicidade && m.periodicidade !== 'avulsa' && <span className="text-[10px] font-bold text-blue-600">{maintenanceLabel(m)}{m.checklistCompleto === false ? ' · Parcial' : ''}</span>}
                     <span className="text-[11px] text-zinc-400 flex items-center gap-1"><Calendar className="w-3 h-3" />{parseDate(m.data) ? format(parseDate(m.data)!, 'dd/MM/yyyy') : '—'}</span>
                   </div>
-                  <p className="text-xs text-zinc-500 mt-1">
+                  {m.servicoRealizado && <p className="mt-2 text-sm font-semibold text-zinc-800 break-words">{m.servicoRealizado}</p>}
+                  {m.responsavelNome && <p className="mt-1 text-xs text-zinc-500">Responsável: {m.responsavelNome}</p>}
+                  {m.horimetro != null && <p className="mt-1 text-xs text-zinc-500">Horímetro: {m.horimetro.toLocaleString('pt-BR')} h</p>}
+                  {m.custosInformados !== false && <p className="text-xs text-zinc-500 mt-1">
                     {m.horasEquipe || 0}h × {brl(m.custoHora || 0)} = {brl(m.valorMaoObra || 0)} mão de obra
                     {(m.pecas?.length || 0) > 0 && ` · peças ${brl(m.pecas.reduce((a, p) => a + (p.valor || 0), 0))}`}
                     {(m.outrosCustos?.length || 0) > 0 && ` · outros ${brl(m.outrosCustos.reduce((a, p) => a + (p.valor || 0), 0))}`}
-                  </p>
+                  </p>}
                   {m.observacoes && <p className="text-[11px] text-zinc-400 mt-0.5 break-words">{m.observacoes}</p>}
+                  <MaintenanceChecklistHistory record={m} />
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-sm font-black text-red-500">{brl(m.custoTotal || 0)}</span>
+                  <span className="text-sm font-black text-red-500">{m.custosInformados === false ? 'Sem custos informados' : brl(m.custoTotal || 0)}</span>
                   {isAdmin && <button onClick={() => handleDelManut(m.id)} className="p-1.5 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 className="w-3.5 h-3.5" /></button>}
                 </div>
               </div>
@@ -527,11 +549,13 @@ function EquipamentoDetalhe({ equipamento, manutencoes, locacoes, onBack, onEdit
                   <span className={cn('w-2 h-2 rounded-full shrink-0', h.kind === 'manut' ? 'bg-red-500' : 'bg-green-500')} />
                   <span className="text-zinc-400">{h.date ? format(h.date, 'dd/MM/yyyy') : '—'}</span>
                   <span className="font-bold text-zinc-700 truncate">
-                    {h.kind === 'manut' ? `Manutenção ${(h.item as EquipamentoManutencao).tipo}` : `Locação — ${(h.item as EquipamentoLocacao).cliente}`}
+                    {h.kind === 'manut' ? maintenanceLabel(h.item as EquipamentoManutencao) : `Locação — ${(h.item as EquipamentoLocacao).cliente}`}
                   </span>
                 </span>
                 <span className={cn('font-black shrink-0', h.kind === 'manut' ? 'text-red-500' : 'text-green-600')}>
-                  {h.kind === 'manut' ? `- ${brl((h.item as EquipamentoManutencao).custoTotal || 0)}` : `+ ${brl((h.item as EquipamentoLocacao).valorLocacao || 0)}`}
+                  {h.kind === 'manut'
+                    ? (h.item as EquipamentoManutencao).custosInformados === false ? 'Sem custos informados' : `- ${brl((h.item as EquipamentoManutencao).custoTotal || 0)}`
+                    : `+ ${brl((h.item as EquipamentoLocacao).valorLocacao || 0)}`}
                 </span>
               </div>
             ))}
@@ -539,7 +563,7 @@ function EquipamentoDetalhe({ equipamento, manutencoes, locacoes, onBack, onEdit
         )}
       </Section>
 
-      {isAdmin && showManut && <ManutencaoModal equipamentoId={equipamento.id} onSaved={onChanged} onClose={() => setShowManut(false)} />}
+      {isAdmin && showManut && <ManutencaoModal equipamento={equipamento} manutencoes={manutencoes} onSaved={onChanged} onClose={() => setShowManut(false)} />}
       {isAdmin && showLoc && <LocacaoModal equipamentoId={equipamento.id} onSaved={onChanged} onClose={() => setShowLoc(false)} />}
     </div>
   );
@@ -858,10 +882,16 @@ function EquipamentoModal({ equipamento, equipamentos, onClose, onSaved, onDelet
 }
 
 // ── Modal: manutenção ───────────────────────────────────────────────────────
-function ManutencaoModal({ equipamentoId, onClose, onSaved }: { equipamentoId: string; onClose: () => void; onSaved?: () => void }) {
-  const { notify, isAdmin } = useAuth();
+function ManutencaoModal({ equipamento, manutencoes, onClose, onSaved }: { equipamento: Equipamento; manutencoes: EquipamentoManutencao[]; onClose: () => void; onSaved?: () => void }) {
+  const { notify, isAdmin, user, userProfile } = useAuth();
   const [data, setData] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [tipo, setTipo] = useState<ManutencaoTipo>('Preventiva');
+  const [periodicidade, setPeriodicidade] = useState<ManutencaoPeriodicidade>(isGeneratorEquipment(equipamento) ? 'mensal' : 'avulsa');
+  const [resultados, setResultados] = useState<Record<string, ManutencaoResultado>>({});
+  const [servicoRealizado, setServicoRealizado] = useState('');
+  const [horimetro, setHorimetro] = useState('');
+  const [responsavelNome, setResponsavelNome] = useState('');
+  const [autorizacaoContratante, setAutorizacaoContratante] = useState(false);
   const [horas, setHoras] = useState<number | ''>('');
   const [custoHora, setCustoHora] = useState<number | ''>('');
   const [pecas, setPecas] = useState<CustoItem[]>([]);
@@ -883,12 +913,17 @@ function ManutencaoModal({ equipamentoId, onClose, onSaved }: { equipamentoId: s
       notify('warning', 'Acesso restrito', 'Somente administradores podem alterar equipamentos.');
       return;
     }
-    if (custoTotal <= 0) { setError('Informe ao menos um custo (mão de obra, peças ou outros).'); return; }
+    setError(null);
     setLoading(true);
     try {
+      const details = buildMaintenanceDetails({ data, periodicidade, resultados, servicoRealizado, horimetro, responsavelNome, autorizacaoContratante });
+      const amounts = [maoObra, custoTotal, typeof horas === 'number' ? horas : 0, typeof custoHora === 'number' ? custoHora : 0,
+        ...pecas.map(item => item.valor), ...outros.map(item => item.valor)];
+      if (amounts.some(value => !Number.isFinite(value) || value < 0)) throw new Error('Informe custos e horas válidos, sem valores negativos.');
       await addDoc(collection(db, 'equipamento_manutencoes'), {
-        equipamentoId,
-        data: data ? new Date(`${data}T12:00:00`).toISOString() : serverTimestamp(),
+        ...details,
+        equipamentoId: equipamento.id,
+        data: new Date(`${data}T12:00:00`).toISOString(),
         tipo,
         horasEquipe: typeof horas === 'number' ? horas : 0,
         custoHora: typeof custoHora === 'number' ? custoHora : 0,
@@ -896,11 +931,14 @@ function ManutencaoModal({ equipamentoId, onClose, onSaved }: { equipamentoId: s
         pecas: pecas.filter(p => p.descricao.trim() || p.valor),
         outrosCustos: outros.filter(p => p.descricao.trim() || p.valor),
         custoTotal,
+        custosInformados: custoTotal > 0,
         observacoes: observacoes.trim(),
+        registradoPorId: userProfile?.id || user?.id || '',
+        registradoPorNome: userProfile ? `${userProfile.nome} ${userProfile.sobrenome || ''}`.trim() : 'Administrador',
         createdAt: serverTimestamp(),
       });
       onSaved?.();
-      notify('success', 'Registrada', 'Manutenção lançada.');
+      notify('success', 'Manutenção registrada', `${equipamento.tag || equipamento.nome}: ${maintenanceLabel({ tipo, periodicidade })} em ${format(new Date(`${data}T12:00:00`), 'dd/MM/yyyy')}.`);
       onClose();
     } catch (err: any) {
       setError(err?.message || 'Falha ao salvar.');
@@ -910,22 +948,39 @@ function ManutencaoModal({ equipamentoId, onClose, onSaved }: { equipamentoId: s
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm">
-      <div className="bg-white w-full sm:max-w-lg rounded-3xl shadow-2xl max-h-[92dvh] overflow-y-auto">
-        <div className="p-6 border-b border-zinc-100 flex items-center justify-between sticky top-0 bg-white">
-          <h3 className="text-lg font-bold">Nova Manutenção</h3>
-          <button type="button" onClick={onClose} className="p-2 hover:bg-zinc-100 rounded-xl"><X className="w-5 h-5" /></button>
+      <div role="dialog" aria-modal="true" aria-labelledby="maintenance-modal-title" className="bg-white w-full sm:max-w-3xl rounded-3xl shadow-2xl max-h-[92dvh] overflow-y-auto">
+        <div className="p-6 border-b border-zinc-100 flex items-center justify-between sticky top-0 z-10 bg-white">
+          <div><h3 id="maintenance-modal-title" className="text-lg font-bold">Registrar manutenção</h3><p className="text-xs text-zinc-500">{equipamento.tag || equipamento.nome}</p></div>
+          <button type="button" onClick={onClose} aria-label="Fechar manutenção" className="p-2 hover:bg-zinc-100 rounded-xl"><X className="w-5 h-5" /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-bold"><AlertCircle className="w-4 h-4 shrink-0" />{error}</div>}
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Data"><input type="date" required className={inputCls} value={data} onChange={e => setData(e.target.value)} /></Field>
-            <Field label="Tipo">
-              <select className={inputCls} value={tipo} onChange={e => setTipo(e.target.value as ManutencaoTipo)}>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Field label="Data de realização" htmlFor="maintenance-date"><input id="maintenance-date" type="date" required max={format(new Date(), 'yyyy-MM-dd')} className={inputCls} value={data} onChange={e => setData(e.target.value)} /></Field>
+            <Field label="Tipo" htmlFor="maintenance-type">
+              <select id="maintenance-type" className={inputCls} value={tipo} onChange={e => setTipo(e.target.value as ManutencaoTipo)}>
                 {(['Preventiva', 'Corretiva', 'Preditiva'] as ManutencaoTipo[]).map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </Field>
+            <Field label="Periodicidade" htmlFor="maintenance-period">
+              <select id="maintenance-period" className={inputCls} value={periodicidade} onChange={e => setPeriodicidade(e.target.value as ManutencaoPeriodicidade)}>
+                {MAINTENANCE_PERIODS.map(period => <option key={period} value={period}>{GENERATOR_MAINTENANCE_PLANS[period].label}</option>)}
+                <option value="avulsa">Avulsa / outros serviços</option>
+              </select>
+            </Field>
           </div>
+
+          <MaintenanceChecklist periodicidade={periodicidade} resultados={resultados} onChange={setResultados} records={manutencoes}
+            autorizado={autorizacaoContratante} onAuthorizationChange={setAutorizacaoContratante} />
+          <Field label={periodicidade === 'avulsa' ? 'Serviço realizado (obrigatório)' : 'Resumo do serviço (opcional)'} htmlFor="maintenance-service">
+            <textarea id="maintenance-service" rows={2} required={periodicidade === 'avulsa'} className={cn(inputCls, 'resize-none')} placeholder="Descreva o serviço realizado ou os principais resultados da verificação." value={servicoRealizado} onChange={e => setServicoRealizado(e.target.value)} />
+          </Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Responsável pela manutenção (opcional)" htmlFor="maintenance-technician"><input id="maintenance-technician" className={inputCls} placeholder="Técnico ou equipe que realizou o serviço" value={responsavelNome} onChange={e => setResponsavelNome(e.target.value)} /></Field>
+            <Field label="Horímetro do gerador (h, opcional)" htmlFor="maintenance-hourmeter"><input id="maintenance-hourmeter" type="number" min="0" step="any" inputMode="decimal" className={inputCls} placeholder="Leitura no momento da manutenção" value={horimetro} onChange={e => setHorimetro(e.target.value)} /></Field>
+          </div>
+          <p className="border-t border-zinc-100 pt-4 text-[11px] text-zinc-500">Os custos abaixo são opcionais. O serviço pode ser registrado mesmo sem valores informados.</p>
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Horas da equipe"><input type="number" min="0" step="0.5" className={inputCls} placeholder="0" value={horas}
