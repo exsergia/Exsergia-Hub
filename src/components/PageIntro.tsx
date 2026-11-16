@@ -68,7 +68,7 @@ const TOURS: Record<string, Step[]> = {
   ],
   '/equipamentos': [
     { selector: '[data-tour="equip-header"]', title: 'Equipamentos', text: 'Cada máquina como centro de custo e receita. Acesso só de administrador.' },
-    { selector: '[data-tour="equip-new"]', title: 'Novo equipamento', text: 'Cadastre o ativo: nome, código, categoria, valor de aquisição, status e foto.' },
+    { selector: '[data-tour="equip-new"]', title: 'Novo equipamento', text: 'Cadastre o item de frota com foto, identificação, tag, modelo, categoria, potência, filtros, tanque e autonomia.' },
     { selector: '[data-tour="equip-kpis"]', title: 'Totais', text: 'Receita, custo e resultado somados de todos os equipamentos.' },
     { selector: '[data-tour="equip-rankings"]', title: 'Rankings', text: 'Os ativos mais lucrativos e os de maior custo de manutenção.' },
     { selector: '[data-tour="equip-list"]', title: 'Ativos cadastrados', text: 'Toque num equipamento para lançar manutenções e locações e ver KPIs, gráfico custo × receita e histórico.' },

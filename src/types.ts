@@ -206,12 +206,28 @@ export interface FiscalAiAnalysis {
 
 // ── Frente 2: Equipamentos (custo e rentabilidade) ─────────────────────────
 export type EquipamentoStatus = 'Ativo' | 'Em Manutenção' | 'Locado' | 'Inativo' | 'Vendido';
+export type EquipamentoPotenciaUnidade = 'kVA' | 'kW' | 'cv' | 'HP';
+export type EquipamentoAutonomiaUnidade = 'L/h' | 'h' | 'km'; // h e km são mantidos para leitura dos registros anteriores
+export interface EquipamentoFiltros {
+  oleo?: string;
+  combustivel?: string;
+  ar?: string;
+  separador?: string;
+}
 
 export interface Equipamento {
   id: string;
   nome: string;
   codigo?: string;
+  tag?: string;
+  modelo?: string;
   categoria?: string;
+  potencia?: number | null;
+  potenciaUnidade?: EquipamentoPotenciaUnidade;
+  filtros?: EquipamentoFiltros;
+  capacidadeTanque?: number | null; // capacidade em litros
+  autonomia?: number | null;
+  autonomiaUnidade?: EquipamentoAutonomiaUnidade;
   dataAquisicao?: string;     // date
   valorAquisicao?: number;
   status: EquipamentoStatus;

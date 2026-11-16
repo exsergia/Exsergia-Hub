@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useCollection } from '../lib/supabaseHooks';
 import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from '../lib/supabaseDb';
 import { db, handleFirestoreError, OperationType } from '../lib/supabase';
@@ -10,11 +10,16 @@ import { CurrencyInput } from '../components/CurrencyInput';
 import { parseDate } from '../lib/dateUtils';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
+import {
+  EQUIPMENT_CATEGORIES, EQUIPMENT_POWER_UNITS, EQUIPMENT_FILTER_FIELDS,
+  buildEquipmentCatalogData, filterEquipmentCatalog, formatEquipmentMeasure,
+  type EquipmentCatalogInput,
+} from '../lib/equipmentCatalog';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import {
   Boxes, Plus, X, ArrowLeft, Wrench, DollarSign, TrendingUp, TrendingDown,
   Camera, Images, Trash2, Edit2, Calendar, Building2, AlertCircle, CheckCircle2,
-  Trophy, Percent, Clock, ShieldCheck,
+  Trophy, Percent, Clock, ShieldCheck, Search, Fuel, Gauge,
 } from 'lucide-react';
 
 const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
@@ -67,8 +72,15 @@ export default function Equipamentos() {
   const [selected, setSelected] = useState<Equipamento | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Equipamento | null>(null);
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('Todas');
 
   const equipamentos = (equipSnap?.docs.map(d => ({ id: d.id, ...d.data() })) as Equipamento[]) || [];
+  const filteredEquipamentos = filterEquipmentCatalog(equipamentos, search, categoryFilter);
+  const categoryOptions = Array.from(new Set([
+    ...EQUIPMENT_CATEGORIES,
+    ...equipamentos.map(item => item.categoria || '').filter(Boolean),
+  ]));
   const manutencoes = (manutSnap?.docs.map(d => ({ id: d.id, ...d.data() })) as EquipamentoManutencao[]) || [];
   const locacoes = (locSnap?.docs.map(d => ({ id: d.id, ...d.data() })) as EquipamentoLocacao[]) || [];
   const loadError = equipError || manutError || locError;
@@ -169,6 +181,7 @@ export default function Equipamentos() {
         {editing && (
           <EquipamentoModal
             equipamento={editing}
+            equipamentos={equipamentos}
             onClose={() => setEditing(null)}
             onSaved={reload}
             onDeleted={() => { handleDelete(editing); setEditing(null); setSelected(null); }}
@@ -183,7 +196,7 @@ export default function Equipamentos() {
       <div data-tour="equip-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Equipamentos</h2>
-          <p className="text-zinc-500">Custo e rentabilidade por ativo — cada máquina como centro de custo e receita.</p>
+          <p className="text-zinc-500">Cadastro de itens de frota, ficha técnica e acompanhamento de custos por equipamento.</p>
         </div>
         <button data-tour="equip-new" onClick={() => setShowAdd(true)} className="flex items-center justify-center gap-2 px-5 py-2.5 bg-zinc-900 text-white rounded-xl text-sm font-bold hover:bg-zinc-800 transition-all shadow-lg active:scale-95">
           <Plus className="w-4 h-4" /> Novo Equipamento
@@ -218,18 +231,33 @@ export default function Equipamentos() {
 
       {/* Lista */}
       <div data-tour="equip-list" className="space-y-3">
-        <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest pl-1">Ativos cadastrados</h3>
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest pl-1">Ativos cadastrados ({filteredEquipamentos.length})</h3>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1 sm:min-w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+              <input aria-label="Pesquisar equipamentos" value={search} onChange={event => setSearch(event.target.value)}
+                placeholder="Nome, código, tag ou modelo..."
+                className="w-full rounded-xl border border-zinc-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none focus:border-zinc-900" />
+            </div>
+            <select aria-label="Filtrar equipamentos por categoria" value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)}
+              className="w-full sm:w-56 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-zinc-900">
+              <option value="Todas">Todas as categorias</option>
+              {categoryOptions.map(category => <option key={category} value={category}>{category}</option>)}
+            </select>
+          </div>
+        </div>
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array(3).fill(0).map((_, i) => <div key={i} className="h-44 bg-white rounded-2xl border border-zinc-100 animate-pulse" />)}</div>
-        ) : equipamentos.length === 0 ? (
+        ) : filteredEquipamentos.length === 0 ? (
           <div className="py-20 text-center bg-white rounded-3xl border-2 border-dashed border-zinc-100">
             <Boxes className="w-14 h-14 text-zinc-200 mx-auto mb-3" />
-            <p className="text-sm font-bold text-zinc-500">Nenhum equipamento cadastrado</p>
-            <p className="text-xs text-zinc-400">Cadastre o primeiro ativo para acompanhar custo e rentabilidade.</p>
+            <p className="text-sm font-bold text-zinc-500">{equipamentos.length ? 'Nenhum equipamento encontrado' : 'Nenhum equipamento cadastrado'}</p>
+            <p className="text-xs text-zinc-400">{equipamentos.length ? 'Altere a pesquisa ou a categoria selecionada.' : 'Cadastre o primeiro item de frota com foto e ficha técnica.'}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
-            {equipamentos.map(eq => {
+            {filteredEquipamentos.map(eq => {
               const f = financeById[eq.id];
               return (
                 <button key={eq.id} onClick={() => setSelected(eq)} className="text-left bg-white p-5 rounded-3xl border border-zinc-200 shadow-sm hover:shadow-md transition-all group">
@@ -241,6 +269,18 @@ export default function Equipamentos() {
                   </div>
                   <h4 className="font-bold text-zinc-900 break-words">{eq.nome}</h4>
                   {eq.codigo && <p className="text-[10px] text-zinc-400 font-mono">{eq.codigo}</p>}
+                  <div className="mt-3 space-y-1 text-xs text-zinc-500">
+                    {eq.tag && <p className="break-words"><strong className="text-zinc-700">Tag:</strong> {eq.tag}</p>}
+                    {eq.modelo && <p className="break-words"><strong className="text-zinc-700">Modelo:</strong> {eq.modelo}</p>}
+                    {eq.categoria && <p className="break-words"><strong className="text-zinc-700">Categoria:</strong> {eq.categoria}</p>}
+                    {eq.potencia != null && <p className="break-words"><strong className="text-zinc-700">Potência:</strong> {formatEquipmentMeasure(eq.potencia, eq.potenciaUnidade)}</p>}
+                  </div>
+                  {(eq.capacidadeTanque != null || eq.autonomia != null) && (
+                    <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-zinc-600">
+                      {eq.capacidadeTanque != null && <span className="inline-flex items-center gap-1 rounded-lg bg-zinc-50 px-2 py-1"><Fuel className="h-3.5 w-3.5" />{formatEquipmentMeasure(eq.capacidadeTanque, 'L')}</span>}
+                      {eq.autonomia != null && <span className="inline-flex items-center gap-1 rounded-lg bg-zinc-50 px-2 py-1"><Gauge className="h-3.5 w-3.5" />{formatEquipmentMeasure(eq.autonomia, eq.autonomiaUnidade)}</span>}
+                    </div>
+                  )}
                   <div className="mt-4 grid grid-cols-2 xl:grid-cols-4 gap-2 text-left">
                     <div className="min-w-0 rounded-xl bg-zinc-50/70 px-2.5 py-2"><p className="text-[9px] font-bold text-zinc-400 uppercase">Receita</p><p className="text-[11px] sm:text-xs font-black text-green-600 break-words leading-tight">{brl(f?.receita || 0)}</p></div>
                     <div className="min-w-0 rounded-xl bg-zinc-50/70 px-2.5 py-2"><p className="text-[9px] font-bold text-zinc-400 uppercase">Custo</p><p className="text-[11px] sm:text-xs font-black text-red-500 break-words leading-tight">{brl(f?.custoTotal || 0)}</p></div>
@@ -257,6 +297,7 @@ export default function Equipamentos() {
       {(showAdd || editing) && (
         <EquipamentoModal
           equipamento={editing || undefined}
+          equipamentos={equipamentos}
           onClose={() => { setShowAdd(false); setEditing(null); }}
           onSaved={reload}
           onDeleted={editing ? () => { handleDelete(editing); setEditing(null); } : undefined}
@@ -375,6 +416,8 @@ function EquipamentoDetalhe({ equipamento, manutencoes, locacoes, onBack, onEdit
         </div>
         {isAdmin && <button onClick={onEdit} className="p-2 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors shrink-0" title="Editar"><Edit2 className="w-4 h-4" /></button>}
       </div>
+
+      <EquipmentTechnicalDetails equipamento={equipamento} />
 
       {/* Filtro de período */}
       <div className="flex items-center gap-2">
@@ -584,12 +627,63 @@ function Section({ title, icon, action, children, scrollable = false }: {
 
 const Empty = ({ texto }: { texto: string }) => <div className="p-8 text-center text-zinc-400 text-xs">{texto}</div>;
 
+function EquipmentTechnicalDetails({ equipamento }: { equipamento: Equipamento }) {
+  const details = [
+    ['Código de identificação', equipamento.codigo || 'Não informado'],
+    ['Tag', equipamento.tag || 'Não informada'],
+    ['Modelo', equipamento.modelo || 'Não informado'],
+    ['Categoria', equipamento.categoria || 'Não informada'],
+    ['Potência', formatEquipmentMeasure(equipamento.potencia, equipamento.potenciaUnidade)],
+    ['Tanque de combustível', formatEquipmentMeasure(equipamento.capacidadeTanque, 'L')],
+    ['Autonomia', formatEquipmentMeasure(equipamento.autonomia, equipamento.autonomiaUnidade)],
+  ];
+  return (
+    <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm space-y-5">
+      <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-500">Ficha técnica do item de frota</h3>
+      <dl className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {details.map(([label, value]) => (
+          <div key={label} className="min-w-0">
+            <dt className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">{label}</dt>
+            <dd className="mt-1 text-sm font-semibold text-zinc-800 break-words">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="border-t border-zinc-100 pt-4">
+        <h4 className="mb-3 text-[10px] font-bold uppercase tracking-widest text-zinc-500">Filtros — códigos / modelos</h4>
+        <dl className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {EQUIPMENT_FILTER_FIELDS.map(field => (
+            <div key={field.key} className="min-w-0">
+              <dt className="text-[10px] font-bold text-zinc-400">{field.label}</dt>
+              <dd className="mt-1 text-sm font-semibold text-zinc-800 break-words">{equipamento.filtros?.[field.key] || 'Não informado'}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </section>
+  );
+}
+
 // ── Modal: equipamento ──────────────────────────────────────────────────────
-function EquipamentoModal({ equipamento, onClose, onSaved, onDeleted }: { equipamento?: Equipamento; onClose: () => void; onSaved?: () => void; onDeleted?: () => void }) {
+function EquipamentoModal({ equipamento, equipamentos, onClose, onSaved, onDeleted }: { equipamento?: Equipamento; equipamentos: Equipamento[]; onClose: () => void; onSaved?: () => void; onDeleted?: () => void }) {
   const { notify, isAdmin } = useAuth();
-  const [nome, setNome] = useState(equipamento?.nome || '');
-  const [codigo, setCodigo] = useState(equipamento?.codigo || '');
-  const [categoria, setCategoria] = useState(equipamento?.categoria || '');
+  const [catalog, setCatalog] = useState<EquipmentCatalogInput>(() => ({
+    nome: equipamento?.nome || '',
+    codigo: equipamento?.codigo || '',
+    tag: equipamento?.tag || '',
+    modelo: equipamento?.modelo || '',
+    categoria: equipamento?.categoria || '',
+    potencia: equipamento?.potencia != null ? String(equipamento.potencia) : '',
+    potenciaUnidade: equipamento?.potenciaUnidade || 'kVA',
+    filtros: {
+      oleo: equipamento?.filtros?.oleo || '',
+      combustivel: equipamento?.filtros?.combustivel || '',
+      ar: equipamento?.filtros?.ar || '',
+      separador: equipamento?.filtros?.separador || '',
+    },
+    capacidadeTanque: equipamento?.capacidadeTanque != null ? String(equipamento.capacidadeTanque) : '',
+    autonomia: equipamento?.autonomia != null ? String(equipamento.autonomia) : '',
+    autonomiaUnidade: equipamento?.autonomiaUnidade || 'L/h',
+  }));
   const [dataAquisicao, setDataAquisicao] = useState(equipamento?.dataAquisicao || '');
   const [valorAquisicao, setValorAquisicao] = useState<number | ''>(equipamento?.valorAquisicao ?? '');
   const [status, setStatus] = useState<EquipamentoStatus>(equipamento?.status || 'Ativo');
@@ -599,10 +693,24 @@ function EquipamentoModal({ equipamento, onClose, onSaved, onDeleted }: { equipa
   const [showCamera, setShowCamera] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const legacyAutonomy = catalog.autonomiaUnidade !== 'L/h';
+
+  useEffect(() => () => {
+    if (fotoPreview?.startsWith('blob:')) URL.revokeObjectURL(fotoPreview);
+  }, [fotoPreview]);
+
+  const setCatalogField = <K extends keyof EquipmentCatalogInput>(key: K, value: EquipmentCatalogInput[K]) => {
+    setCatalog(previous => ({ ...previous, [key]: value }));
+  };
 
   const setFoto = (file: File) => {
-    setFotoPreview(prev => { if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev); return URL.createObjectURL(file); });
+    if (file.type && !file.type.startsWith('image/')) {
+      setError('Selecione uma imagem válida para o equipamento.');
+      return;
+    }
+    setFotoPreview(URL.createObjectURL(file));
     setFotoFile(file); setShowCamera(false);
+    setError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -613,15 +721,19 @@ function EquipamentoModal({ equipamento, onClose, onSaved, onDeleted }: { equipa
       notify('warning', 'Acesso restrito', 'Somente administradores podem alterar equipamentos.');
       return;
     }
-    if (!nome.trim()) { setError('Informe o nome do equipamento.'); return; }
+    setError(null);
     setLoading(true);
     try {
+      const catalogData = buildEquipmentCatalogData(catalog, equipamentos, equipamento?.id);
+      if (typeof valorAquisicao === 'number' && (!Number.isFinite(valorAquisicao) || valorAquisicao < 0)) {
+        throw new Error('O valor de aquisição deve ser maior ou igual a zero.');
+      }
       let fotoUrl = equipamento?.fotoUrl || '';
       if (fotoFile) fotoUrl = await uploadPhoto(fotoFile, 'equipamentos');
       else if (!fotoPreview) fotoUrl = '';
 
       const payload = {
-        nome: nome.trim(), codigo: codigo.trim(), categoria: categoria.trim(),
+        ...catalogData,
         dataAquisicao, valorAquisicao: typeof valorAquisicao === 'number' ? valorAquisicao : 0,
         status, observacoes: observacoes.trim(), fotoUrl,
       };
@@ -638,19 +750,68 @@ function EquipamentoModal({ equipamento, onClose, onSaved, onDeleted }: { equipa
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm">
-      <div className="bg-white w-full sm:max-w-lg rounded-3xl shadow-2xl max-h-[92dvh] overflow-y-auto">
-        <div className="p-6 border-b border-zinc-100 flex items-center justify-between sticky top-0 bg-white">
-          <h3 className="text-lg font-bold">{equipamento ? 'Editar Equipamento' : 'Novo Equipamento'}</h3>
-          <button type="button" onClick={onClose} className="p-2 hover:bg-zinc-100 rounded-xl"><X className="w-5 h-5" /></button>
+      <div role="dialog" aria-modal="true" aria-labelledby="equipment-modal-title" className="bg-white w-full sm:max-w-2xl rounded-3xl shadow-2xl max-h-[92dvh] overflow-y-auto">
+        <div className="p-6 border-b border-zinc-100 flex items-center justify-between sticky top-0 z-10 bg-white">
+          <h3 id="equipment-modal-title" className="text-lg font-bold">{equipamento ? 'Editar Equipamento' : 'Novo Equipamento'}</h3>
+          <button type="button" onClick={onClose} aria-label="Fechar cadastro de equipamento" className="p-2 hover:bg-zinc-100 rounded-xl"><X className="w-5 h-5" /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-bold"><AlertCircle className="w-4 h-4 shrink-0" />{error}</div>}
 
-          <Field label="Nome"><input required className={inputCls} placeholder="Ex: Escavadeira CAT 320" value={nome} onChange={e => setNome(e.target.value)} /></Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Código"><input className={inputCls} placeholder="Opcional" value={codigo} onChange={e => setCodigo(e.target.value)} /></Field>
-            <Field label="Categoria"><input className={inputCls} placeholder="Ex: Escavação" value={categoria} onChange={e => setCategoria(e.target.value)} /></Field>
+          <Field label="Item de frota (nome)" htmlFor="equipment-name"><input id="equipment-name" required className={inputCls} placeholder="Ex: Grupo motogerador 250 kVA" value={catalog.nome} onChange={e => setCatalogField('nome', e.target.value)} /></Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Código de identificação" htmlFor="equipment-code"><input id="equipment-code" required className={inputCls} placeholder="Ex: EQ-001" value={catalog.codigo} onChange={e => setCatalogField('codigo', e.target.value.toUpperCase())} /></Field>
+            <Field label="Tag" htmlFor="equipment-tag"><input id="equipment-tag" className={inputCls} placeholder="Ex: GMG-01" value={catalog.tag} onChange={e => setCatalogField('tag', e.target.value.toUpperCase())} /></Field>
           </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Modelo" htmlFor="equipment-model"><input id="equipment-model" required className={inputCls} placeholder="Ex: Modelo / versão do fabricante" value={catalog.modelo} onChange={e => setCatalogField('modelo', e.target.value)} /></Field>
+            <Field label="Categoria" htmlFor="equipment-category">
+              <select id="equipment-category" required className={inputCls} value={catalog.categoria} onChange={e => setCatalogField('categoria', e.target.value)}>
+                <option value="">Selecione uma categoria...</option>
+                {catalog.categoria && !(EQUIPMENT_CATEGORIES as readonly string[]).includes(catalog.categoria) && <option value={catalog.categoria}>{catalog.categoria} (cadastro anterior)</option>}
+                {EQUIPMENT_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}
+              </select>
+            </Field>
+          </div>
+          <fieldset className="rounded-2xl border border-zinc-200 p-4 space-y-4">
+            <legend className="px-2 text-xs font-bold text-zinc-700">Características técnicas</legend>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="Potência" htmlFor="equipment-power">
+                <div className="flex gap-2">
+                  <input id="equipment-power" type="number" min="0.001" step="any" inputMode="decimal" className={cn(inputCls, 'min-w-0 flex-1')} placeholder="Ex: 250" value={catalog.potencia} onChange={e => setCatalogField('potencia', e.target.value)} />
+                  <select aria-label="Unidade da potência" className={cn(inputCls, 'w-24 shrink-0')} value={catalog.potenciaUnidade} onChange={e => setCatalogField('potenciaUnidade', e.target.value as EquipmentCatalogInput['potenciaUnidade'])}>
+                    {EQUIPMENT_POWER_UNITS.map(unit => <option key={unit}>{unit}</option>)}
+                  </select>
+                </div>
+              </Field>
+              <Field label="Capacidade do tanque (litros)" htmlFor="equipment-tank"><input id="equipment-tank" type="number" min="0.001" step="any" inputMode="decimal" className={inputCls} placeholder="Ex: 400" value={catalog.capacidadeTanque} onChange={e => setCatalogField('capacidadeTanque', e.target.value)} /></Field>
+            </div>
+            <Field label={legacyAutonomy ? 'Autonomia (registro anterior)' : 'Autonomia (L/h)'} htmlFor="equipment-autonomy">
+              <div className="flex gap-2">
+                <input id="equipment-autonomy" type="number" min="0.001" step="any" inputMode="decimal" disabled={legacyAutonomy}
+                  required={Boolean(equipamento?.autonomia != null && equipamento.autonomiaUnidade !== 'L/h' && !legacyAutonomy)}
+                  className={cn(inputCls, 'min-w-0 flex-1 disabled:text-zinc-400')} placeholder="Ex: 12,5" value={catalog.autonomia} onChange={e => setCatalogField('autonomia', e.target.value)} />
+                <span className="flex w-24 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-sm font-bold text-zinc-600">{catalog.autonomiaUnidade}</span>
+              </div>
+              {legacyAutonomy ? (
+                <div className="space-y-2">
+                  <p className="text-[11px] text-zinc-500">O valor anterior está em {catalog.autonomiaUnidade}. Informe o consumo em litros por hora para atualizar.</p>
+                  <button type="button" onClick={() => setCatalog(previous => ({ ...previous, autonomia: '', autonomiaUnidade: 'L/h' }))} className="text-xs font-bold text-blue-600 hover:underline">Informar em L/h</button>
+                </div>
+              ) : <p className="text-[11px] text-zinc-500">Litros de combustível consumidos por hora de funcionamento.</p>}
+            </Field>
+          </fieldset>
+          <fieldset className="rounded-2xl border border-zinc-200 p-4 space-y-3">
+            <legend className="px-2 text-xs font-bold text-zinc-700">Filtros</legend>
+            <p className="text-[11px] text-zinc-500">Informe o código ou modelo de cada filtro. Deixe em branco quando não se aplicar.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {EQUIPMENT_FILTER_FIELDS.map(field => (
+                <Field key={field.key} label={field.label} htmlFor={`equipment-filter-${field.key}`}>
+                  <input id={`equipment-filter-${field.key}`} className={inputCls} placeholder="Código / modelo" value={catalog.filtros[field.key]} onChange={event => setCatalog(previous => ({ ...previous, filtros: { ...previous.filtros, [field.key]: event.target.value } }))} />
+                </Field>
+              ))}
+            </div>
+          </fieldset>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Data de aquisição"><input type="date" className={inputCls} value={dataAquisicao} onChange={e => setDataAquisicao(e.target.value)} /></Field>
             <Field label="Valor de aquisição"><CurrencyInput value={valorAquisicao} onChange={setValorAquisicao} className={inputCls} /></Field>
@@ -669,6 +830,7 @@ function EquipamentoModal({ equipamento, onClose, onSaved, onDeleted }: { equipa
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setShowCamera(true)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-zinc-200 bg-zinc-50 text-xs font-bold text-zinc-600 hover:bg-zinc-100"><Camera className="w-4 h-4" /> Nova</button>
                   <label htmlFor="equip-galeria" className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-zinc-200 bg-zinc-50 text-xs font-bold text-zinc-600 cursor-pointer hover:bg-zinc-100"><Images className="w-4 h-4" /> Galeria</label>
+                  <button type="button" aria-label="Remover foto do equipamento" onClick={() => { setFotoPreview(null); setFotoFile(null); }} className="px-3 rounded-xl border border-red-100 bg-red-50 text-red-600"><X className="w-4 h-4" /></button>
                 </div>
               </div>
             ) : (
@@ -875,10 +1037,10 @@ function LocacaoModal({ equipamentoId, onClose, onSaved }: { equipamentoId: stri
 }
 
 const inputCls = 'w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:border-zinc-900';
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">{label}</label>
+      <label htmlFor={htmlFor} className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">{label}</label>
       {children}
     </div>
   );
