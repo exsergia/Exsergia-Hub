@@ -267,10 +267,10 @@ export default function Equipamentos() {
                     </div>
                     <span className={cn('px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider', statusBadge(eq.status))}>{eq.status}</span>
                   </div>
-                  <h4 className="font-bold text-zinc-900 break-words">{eq.nome}</h4>
+                  <h4 className="text-xl font-black tracking-tight text-zinc-900 break-words">{eq.tag?.trim() || eq.nome}</h4>
                   {eq.codigo && <p className="text-[10px] text-zinc-400 font-mono">{eq.codigo}</p>}
                   <div className="mt-3 space-y-1 text-xs text-zinc-500">
-                    {eq.tag && <p className="break-words"><strong className="text-zinc-700">Tag:</strong> {eq.tag}</p>}
+                    {eq.tag?.trim() && <p className="break-words"><strong className="text-zinc-700">Item de frota:</strong> {eq.nome}</p>}
                     {eq.modelo && <p className="break-words"><strong className="text-zinc-700">Modelo:</strong> {eq.modelo}</p>}
                     {eq.categoria && <p className="break-words"><strong className="text-zinc-700">Categoria:</strong> {eq.categoria}</p>}
                     {eq.potencia != null && <p className="break-words"><strong className="text-zinc-700">Potência:</strong> {formatEquipmentMeasure(eq.potencia, eq.potenciaUnidade)}</p>}
@@ -404,9 +404,10 @@ function EquipamentoDetalhe({ equipamento, manutencoes, locacoes, onBack, onEdit
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-xl font-bold text-zinc-900 break-words">{equipamento.nome}</h2>
+            <h2 className="text-xl font-black tracking-tight text-zinc-900 break-words">{equipamento.tag?.trim() || equipamento.nome}</h2>
             <span className={cn('px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider', statusBadge(equipamento.status))}>{equipamento.status}</span>
           </div>
+          {equipamento.tag?.trim() && <p className="mt-1 text-sm text-zinc-600 break-words">{equipamento.nome}</p>}
           <p className="text-xs text-zinc-500 mt-0.5">
             {equipamento.codigo && <span className="font-mono">{equipamento.codigo} · </span>}
             {equipamento.categoria || 'Sem categoria'}
