@@ -661,6 +661,10 @@ function EquipmentTechnicalDetails({ equipamento }: { equipamento: Equipamento }
     ['Potência', formatEquipmentMeasure(equipamento.potencia, equipamento.potenciaUnidade)],
     ['Tanque de combustível', formatEquipmentMeasure(equipamento.capacidadeTanque, 'L')],
     ['Autonomia', formatEquipmentMeasure(equipamento.autonomia, equipamento.autonomiaUnidade)],
+    ['Ano de fabricação', equipamento.anoFabricacao?.toString() || 'Não informado'],
+    ['Gerador', equipamento.fabricanteGerador || 'Não informado'],
+    ['Motor', equipamento.motor || 'Não informado'],
+    ['Número de série', equipamento.numeroSerie || 'Não informado'],
   ];
   return (
     <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm space-y-5">
@@ -710,6 +714,10 @@ function EquipamentoModal({ equipamento, equipamentos, onClose, onSaved, onDelet
     autonomiaUnidade: equipamento?.autonomiaUnidade || 'L/h',
   }));
   const [dataAquisicao, setDataAquisicao] = useState(equipamento?.dataAquisicao || '');
+  const [anoFabricacao, setAnoFabricacao] = useState(equipamento?.anoFabricacao?.toString() || '');
+  const [fabricanteGerador, setFabricanteGerador] = useState(equipamento?.fabricanteGerador || '');
+  const [motor, setMotor] = useState(equipamento?.motor || '');
+  const [numeroSerie, setNumeroSerie] = useState(equipamento?.numeroSerie || '');
   const [valorAquisicao, setValorAquisicao] = useState<number | ''>(equipamento?.valorAquisicao ?? '');
   const [status, setStatus] = useState<EquipamentoStatus>(equipamento?.status || 'Ativo');
   const [observacoes, setObservacoes] = useState(equipamento?.observacoes || '');
@@ -759,6 +767,10 @@ function EquipamentoModal({ equipamento, equipamentos, onClose, onSaved, onDelet
 
       const payload = {
         ...catalogData,
+        anoFabricacao: anoFabricacao ? Number(anoFabricacao) : null,
+        fabricanteGerador: fabricanteGerador.trim(),
+        motor: motor.trim(),
+        numeroSerie: numeroSerie.trim(),
         dataAquisicao, valorAquisicao: typeof valorAquisicao === 'number' ? valorAquisicao : 0,
         status, observacoes: observacoes.trim(), fotoUrl,
       };
@@ -825,6 +837,12 @@ function EquipamentoModal({ equipamento, equipamentos, onClose, onSaved, onDelet
                 </div>
               ) : <p className="text-[11px] text-zinc-500">Litros de combustível consumidos por hora de funcionamento.</p>}
             </Field>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="Ano de fabricação" htmlFor="equipment-year"><input id="equipment-year" type="number" min="1900" max="2100" step="1" inputMode="numeric" className={inputCls} value={anoFabricacao} onChange={e => setAnoFabricacao(e.target.value)} /></Field>
+              <Field label="Fabricante do gerador" htmlFor="equipment-generator"><input id="equipment-generator" className={inputCls} placeholder="Ex: WEG" value={fabricanteGerador} onChange={e => setFabricanteGerador(e.target.value)} /></Field>
+              <Field label="Motor" htmlFor="equipment-engine"><input id="equipment-engine" className={inputCls} placeholder="Ex: Perkins" value={motor} onChange={e => setMotor(e.target.value)} /></Field>
+              <Field label="Número de série" htmlFor="equipment-serial"><input id="equipment-serial" className={inputCls} value={numeroSerie} onChange={e => setNumeroSerie(e.target.value)} /></Field>
+            </div>
           </fieldset>
           <fieldset className="rounded-2xl border border-zinc-200 p-4 space-y-3">
             <legend className="px-2 text-xs font-bold text-zinc-700">Filtros</legend>

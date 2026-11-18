@@ -228,6 +228,10 @@ export interface Equipamento {
   capacidadeTanque?: number | null; // capacidade em litros
   autonomia?: number | null;
   autonomiaUnidade?: EquipamentoAutonomiaUnidade;
+  anoFabricacao?: number | null;
+  fabricanteGerador?: string;
+  motor?: string;
+  numeroSerie?: string;
   dataAquisicao?: string;     // date
   valorAquisicao?: number;
   status: EquipamentoStatus;
