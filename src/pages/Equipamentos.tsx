@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useCollection } from '../lib/supabaseHooks';
-import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from '../lib/supabaseDb';
+import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy, writeBatch } from '../lib/supabaseDb';
 import { db, handleFirestoreError, OperationType } from '../lib/supabase';
 import { Equipamento, EquipamentoManutencao, EquipamentoLocacao, EquipamentoStatus, ManutencaoTipo, CustoItem, ManutencaoPeriodicidade, ManutencaoResultado } from '../types';
 import { useAuth } from '../App';
@@ -158,17 +158,23 @@ export default function Equipamentos() {
   const handleDelete = async (eq: Equipamento) => {
     if (!isAdmin) {
       notify('warning', 'Acesso restrito', 'Somente administradores podem alterar equipamentos.');
-      return;
+      return false;
     }
-    if (!confirm(`Excluir o equipamento "${eq.nome}" e todo o seu histórico financeiro?`)) return;
+    const identificacao = eq.tag?.trim() || eq.nome;
+    if (!confirm(`Excluir definitivamente o gerador "${identificacao}"?\n\nAs manutenções, locações e todo o histórico financeiro também serão removidos. Esta ação não pode ser desfeita.`)) return false;
     try {
-      await deleteDoc(doc(db, 'equipamentos', eq.id));
-      for (const m of manutencoes.filter(m => m.equipamentoId === eq.id)) await deleteDoc(doc(db, 'equipamento_manutencoes', m.id));
-      for (const l of locacoes.filter(l => l.equipamentoId === eq.id)) await deleteDoc(doc(db, 'equipamento_locacoes', l.id));
-      notify('success', 'Excluído', 'Equipamento removido.');
+      const batch = writeBatch(db);
+      manutencoes.filter(m => m.equipamentoId === eq.id).forEach(m => batch.delete(doc(db, 'equipamento_manutencoes', m.id)));
+      locacoes.filter(l => l.equipamentoId === eq.id).forEach(l => batch.delete(doc(db, 'equipamento_locacoes', l.id)));
+      batch.delete(doc(db, 'equipamentos', eq.id));
+      await batch.commit();
+      reload();
+      notify('success', 'Gerador excluído', `${identificacao} e seu histórico foram removidos.`);
+      return true;
     } catch (err: any) {
       notify('error', 'Erro ao excluir', err.message || 'Falha.');
       handleFirestoreError(err, OperationType.DELETE, 'equipamentos');
+      return false;
     }
   };
 
@@ -187,6 +193,7 @@ export default function Equipamentos() {
           locacoes={locacoes.filter(l => l.equipamentoId === current.id)}
           onBack={() => setSelected(null)}
           onEdit={() => setEditing(current)}
+          onDelete={async () => { if (await handleDelete(current)) setSelected(null); }}
           onChanged={reload}
         />
         {/* O modal precisa ser renderizado aqui também: nesta branch o return acontece
@@ -197,7 +204,9 @@ export default function Equipamentos() {
             equipamentos={equipamentos}
             onClose={() => setEditing(null)}
             onSaved={reload}
-            onDeleted={() => { handleDelete(editing); setEditing(null); setSelected(null); }}
+            onDeleted={async () => {
+              if (await handleDelete(editing)) { setEditing(null); setSelected(null); }
+            }}
           />
         )}
       </>
@@ -314,7 +323,7 @@ export default function Equipamentos() {
           equipamentos={equipamentos}
           onClose={() => { setShowAdd(false); setEditing(null); }}
           onSaved={reload}
-          onDeleted={editing ? () => { handleDelete(editing); setEditing(null); } : undefined}
+          onDeleted={editing ? async () => { if (await handleDelete(editing)) setEditing(null); } : undefined}
         />
       )}
     </div>
@@ -322,10 +331,10 @@ export default function Equipamentos() {
 }
 
 // ── Detalhe ───────────────────────────────────────────────────────────────────
-function EquipamentoDetalhe({ equipamento, manutencoes, locacoes, maintenanceLoading, maintenanceError, onBack, onEdit, onChanged }: {
+function EquipamentoDetalhe({ equipamento, manutencoes, locacoes, maintenanceLoading, maintenanceError, onBack, onEdit, onDelete, onChanged }: {
   equipamento: Equipamento; manutencoes: EquipamentoManutencao[]; locacoes: EquipamentoLocacao[];
   maintenanceLoading?: boolean; maintenanceError?: boolean;
-  onBack: () => void; onEdit: () => void; onChanged: () => void;
+  onBack: () => void; onEdit: () => void; onDelete: () => void | Promise<void>; onChanged: () => void;
 }) {
   const { notify, isAdmin } = useAuth();
   const [periodo, setPeriodo] = useState<'mes' | 'ano' | 'tudo'>('tudo');
@@ -413,7 +422,7 @@ function EquipamentoDetalhe({ equipamento, manutencoes, locacoes, maintenanceLoa
       </button>
 
       {/* Header */}
-      <div className="bg-white rounded-3xl border border-zinc-200 shadow-sm p-5 flex items-center gap-4">
+      <div className="bg-white rounded-3xl border border-zinc-200 shadow-sm p-5 flex flex-col sm:flex-row sm:items-center gap-4">
         <div className="w-16 h-16 rounded-2xl bg-zinc-50 overflow-hidden flex items-center justify-center shrink-0">
           {equipamento.fotoUrl ? <img src={equipamento.fotoUrl} className="w-full h-full object-cover" alt={equipamento.nome} /> : <Boxes className="w-8 h-8 text-zinc-400" />}
         </div>
@@ -430,7 +439,12 @@ function EquipamentoDetalhe({ equipamento, manutencoes, locacoes, maintenanceLoa
             {equipamento.dataAquisicao ? ` (${format(new Date(`${equipamento.dataAquisicao}T00:00:00`), 'dd/MM/yyyy')})` : ''}
           </p>
         </div>
-        {isAdmin && <button onClick={onEdit} className="p-2 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors shrink-0" title="Editar"><Edit2 className="w-4 h-4" /></button>}
+        {isAdmin && (
+          <div className="flex w-full sm:w-auto shrink-0 gap-2">
+            <button onClick={onEdit} className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors" title="Editar gerador"><Edit2 className="w-4 h-4" />Editar</button>
+            <button onClick={onDelete} className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl transition-colors" title="Excluir gerador"><Trash2 className="w-4 h-4" />Excluir gerador</button>
+          </div>
+        )}
       </div>
 
       <EquipmentTechnicalDetails equipamento={equipamento} />
@@ -887,7 +901,7 @@ function EquipamentoModal({ equipamento, equipamentos, onClose, onSaved, onDelet
           <Field label="Observações"><textarea rows={2} className={cn(inputCls, 'resize-none')} value={observacoes} onChange={e => setObservacoes(e.target.value)} /></Field>
 
           <div className="flex gap-2">
-            {onDeleted && <button type="button" onClick={onDeleted} className="px-4 py-3 rounded-2xl border border-red-100 bg-red-50 text-red-600 text-sm font-bold hover:bg-red-100"><Trash2 className="w-4 h-4" /></button>}
+            {onDeleted && <button type="button" onClick={onDeleted} className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-red-100 bg-red-50 text-red-600 text-sm font-bold hover:bg-red-100"><Trash2 className="w-4 h-4" />Excluir gerador</button>}
             <button type="submit" disabled={loading} className={cn('flex-1 py-3 rounded-2xl font-bold transition-all', loading ? 'bg-zinc-100 text-zinc-300' : 'bg-zinc-900 text-white hover:bg-zinc-800')}>
               {loading ? 'Salvando...' : equipamento ? 'Salvar Alterações' : 'Cadastrar'}
             </button>
