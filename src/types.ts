@@ -210,9 +210,13 @@ export type EquipamentoPotenciaUnidade = 'kVA' | 'kW' | 'cv' | 'HP';
 export type EquipamentoAutonomiaUnidade = 'L/h' | 'h' | 'km'; // h e km são mantidos para leitura dos registros anteriores
 export interface EquipamentoFiltros {
   oleo?: string;
+  oleoQuantidade?: number | null;
   combustivel?: string;
+  combustivelQuantidade?: number | null;
   ar?: string;
+  arQuantidade?: number | null;
   separador?: string;
+  separadorQuantidade?: number | null;
 }
 
 export interface Equipamento {
@@ -232,6 +236,9 @@ export interface Equipamento {
   fabricanteGerador?: string;
   motor?: string;
   numeroSerie?: string;
+  controlador?: string;
+  oleoLubrificanteTipo?: string;
+  oleoLubrificanteLitros?: number | null;
   dataAquisicao?: string;     // date
   valorAquisicao?: number;
   status: EquipamentoStatus;

@@ -667,6 +667,12 @@ function Section({ title, icon, action, children, scrollable = false }: {
 const Empty = ({ texto }: { texto: string }) => <div className="p-8 text-center text-zinc-400 text-xs">{texto}</div>;
 
 function EquipmentTechnicalDetails({ equipamento }: { equipamento: Equipamento }) {
+  const filterQuantities = {
+    oleo: equipamento.filtros?.oleoQuantidade,
+    combustivel: equipamento.filtros?.combustivelQuantidade,
+    ar: equipamento.filtros?.arQuantidade,
+    separador: equipamento.filtros?.separadorQuantidade,
+  };
   const details = [
     ['Código de identificação', equipamento.codigo || 'Não informado'],
     ['Tag', equipamento.tag || 'Não informada'],
@@ -679,6 +685,9 @@ function EquipmentTechnicalDetails({ equipamento }: { equipamento: Equipamento }
     ['Gerador', equipamento.fabricanteGerador || 'Não informado'],
     ['Motor', equipamento.motor || 'Não informado'],
     ['Número de série', equipamento.numeroSerie || 'Não informado'],
+    ['Controlador', equipamento.controlador || 'Não informado'],
+    ['Óleo lubrificante', equipamento.oleoLubrificanteTipo || 'Não informado'],
+    ['Volume de óleo', equipamento.oleoLubrificanteLitros != null ? `${formatEquipmentMeasure(equipamento.oleoLubrificanteLitros, 'L')}` : 'Não informado'],
   ];
   return (
     <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm space-y-5">
@@ -697,7 +706,10 @@ function EquipmentTechnicalDetails({ equipamento }: { equipamento: Equipamento }
           {EQUIPMENT_FILTER_FIELDS.map(field => (
             <div key={field.key} className="min-w-0">
               <dt className="text-[10px] font-bold text-zinc-400">{field.label}</dt>
-              <dd className="mt-1 text-sm font-semibold text-zinc-800 break-words">{equipamento.filtros?.[field.key] || 'Não informado'}</dd>
+              <dd className="mt-1 text-sm font-semibold text-zinc-800 break-words">
+                {equipamento.filtros?.[field.key] || 'Não informado'}
+                {filterQuantities[field.key] != null && <span className="ml-1 text-zinc-500">· Qtd. {filterQuantities[field.key]}</span>}
+              </dd>
             </div>
           ))}
         </dl>
@@ -732,6 +744,15 @@ function EquipamentoModal({ equipamento, equipamentos, onClose, onSaved, onDelet
   const [fabricanteGerador, setFabricanteGerador] = useState(equipamento?.fabricanteGerador || '');
   const [motor, setMotor] = useState(equipamento?.motor || '');
   const [numeroSerie, setNumeroSerie] = useState(equipamento?.numeroSerie || '');
+  const [controlador, setControlador] = useState(equipamento?.controlador || '');
+  const [oleoLubrificanteTipo, setOleoLubrificanteTipo] = useState(equipamento?.oleoLubrificanteTipo || '');
+  const [oleoLubrificanteLitros, setOleoLubrificanteLitros] = useState(equipamento?.oleoLubrificanteLitros?.toString() || '');
+  const [filterQuantities, setFilterQuantities] = useState({
+    oleo: equipamento?.filtros?.oleoQuantidade?.toString() || '',
+    combustivel: equipamento?.filtros?.combustivelQuantidade?.toString() || '',
+    ar: equipamento?.filtros?.arQuantidade?.toString() || '',
+    separador: equipamento?.filtros?.separadorQuantidade?.toString() || '',
+  });
   const [valorAquisicao, setValorAquisicao] = useState<number | ''>(equipamento?.valorAquisicao ?? '');
   const [status, setStatus] = useState<EquipamentoStatus>(equipamento?.status || 'Ativo');
   const [observacoes, setObservacoes] = useState(equipamento?.observacoes || '');
@@ -781,10 +802,20 @@ function EquipamentoModal({ equipamento, equipamentos, onClose, onSaved, onDelet
 
       const payload = {
         ...catalogData,
+        filtros: {
+          ...catalogData.filtros,
+          oleoQuantidade: filterQuantities.oleo === '' ? null : Number(filterQuantities.oleo),
+          combustivelQuantidade: filterQuantities.combustivel === '' ? null : Number(filterQuantities.combustivel),
+          arQuantidade: filterQuantities.ar === '' ? null : Number(filterQuantities.ar),
+          separadorQuantidade: filterQuantities.separador === '' ? null : Number(filterQuantities.separador),
+        },
         anoFabricacao: anoFabricacao ? Number(anoFabricacao) : null,
         fabricanteGerador: fabricanteGerador.trim(),
         motor: motor.trim(),
         numeroSerie: numeroSerie.trim(),
+        controlador: controlador.trim(),
+        oleoLubrificanteTipo: oleoLubrificanteTipo.trim(),
+        oleoLubrificanteLitros: oleoLubrificanteLitros ? Number(oleoLubrificanteLitros) : null,
         dataAquisicao, valorAquisicao: typeof valorAquisicao === 'number' ? valorAquisicao : 0,
         status, observacoes: observacoes.trim(), fotoUrl,
       };
@@ -856,6 +887,7 @@ function EquipamentoModal({ equipamento, equipamentos, onClose, onSaved, onDelet
               <Field label="Fabricante do gerador" htmlFor="equipment-generator"><input id="equipment-generator" className={inputCls} placeholder="Ex: WEG" value={fabricanteGerador} onChange={e => setFabricanteGerador(e.target.value)} /></Field>
               <Field label="Motor" htmlFor="equipment-engine"><input id="equipment-engine" className={inputCls} placeholder="Ex: Perkins" value={motor} onChange={e => setMotor(e.target.value)} /></Field>
               <Field label="Número de série" htmlFor="equipment-serial"><input id="equipment-serial" className={inputCls} value={numeroSerie} onChange={e => setNumeroSerie(e.target.value)} /></Field>
+              <Field label="Controlador" htmlFor="equipment-controller"><input id="equipment-controller" className={inputCls} placeholder="Ex: Power Wizard 1.1" value={controlador} onChange={e => setControlador(e.target.value)} /></Field>
             </div>
           </fieldset>
           <fieldset className="rounded-2xl border border-zinc-200 p-4 space-y-3">
@@ -864,9 +896,19 @@ function EquipamentoModal({ equipamento, equipamentos, onClose, onSaved, onDelet
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {EQUIPMENT_FILTER_FIELDS.map(field => (
                 <Field key={field.key} label={field.label} htmlFor={`equipment-filter-${field.key}`}>
-                  <input id={`equipment-filter-${field.key}`} className={inputCls} placeholder="Código / modelo" value={catalog.filtros[field.key]} onChange={event => setCatalog(previous => ({ ...previous, filtros: { ...previous.filtros, [field.key]: event.target.value } }))} />
+                  <div className="flex gap-2">
+                    <input id={`equipment-filter-${field.key}`} className={cn(inputCls, 'min-w-0 flex-1')} placeholder="Código / modelo" value={catalog.filtros[field.key]} onChange={event => setCatalog(previous => ({ ...previous, filtros: { ...previous.filtros, [field.key]: event.target.value } }))} />
+                    <input aria-label={`Quantidade de ${field.label}`} type="number" min="0" step="1" inputMode="numeric" className={cn(inputCls, 'w-24 shrink-0')} placeholder="Qtd." value={filterQuantities[field.key]} onChange={event => setFilterQuantities(previous => ({ ...previous, [field.key]: event.target.value }))} />
+                  </div>
                 </Field>
               ))}
+            </div>
+          </fieldset>
+          <fieldset className="rounded-2xl border border-zinc-200 p-4 space-y-3">
+            <legend className="px-2 text-xs font-bold text-zinc-700">Óleo lubrificante</legend>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="Modelo / tipo" htmlFor="equipment-oil-type"><input id="equipment-oil-type" className={inputCls} placeholder="Ex: 15W 40" value={oleoLubrificanteTipo} onChange={e => setOleoLubrificanteTipo(e.target.value)} /></Field>
+              <Field label="Volume (litros)" htmlFor="equipment-oil-liters"><input id="equipment-oil-liters" type="number" min="0" step="any" inputMode="decimal" className={inputCls} value={oleoLubrificanteLitros} onChange={e => setOleoLubrificanteLitros(e.target.value)} /></Field>
             </div>
           </fieldset>
           <div className="grid grid-cols-2 gap-3">
