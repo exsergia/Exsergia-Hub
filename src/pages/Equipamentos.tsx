@@ -7,7 +7,7 @@ import { useAuth } from '../App';
 import { uploadPhoto } from '../lib/services';
 import { CameraCapture } from '../components/CameraCapture';
 import { CurrencyInput } from '../components/CurrencyInput';
-import { EquipmentMaintenanceOverview, MaintenanceCardSummary, MaintenanceChecklist, MaintenanceChecklistHistory } from '../components/EquipmentMaintenance';
+import { EquipmentMaintenanceOverview, MaintenanceChecklist, MaintenanceChecklistHistory } from '../components/EquipmentMaintenance';
 import { parseDate } from '../lib/dateUtils';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
@@ -16,12 +16,12 @@ import {
   buildEquipmentCatalogData, filterEquipmentCatalog, formatEquipmentMeasure,
   type EquipmentCatalogInput,
 } from '../lib/equipmentCatalog';
-import { buildMaintenanceDetails, GENERATOR_MAINTENANCE_PLANS, getLatestMaintenance, isGeneratorEquipment, MAINTENANCE_PERIODS, maintenanceLabel } from '../lib/equipmentMaintenance';
+import { buildMaintenanceDetails, GENERATOR_MAINTENANCE_PLANS, isGeneratorEquipment, MAINTENANCE_PERIODS, maintenanceLabel } from '../lib/equipmentMaintenance';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import {
   Boxes, Plus, X, ArrowLeft, Wrench, DollarSign, TrendingUp, TrendingDown,
   Camera, Images, Trash2, Edit2, Calendar, Building2, AlertCircle, CheckCircle2,
-  Trophy, Percent, Clock, ShieldCheck, Search, Fuel, Gauge, ArrowRight,
+  Trophy, Percent, Clock, ShieldCheck, Search, Fuel, Gauge,
 } from 'lucide-react';
 
 const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
@@ -87,15 +87,6 @@ export default function Equipamentos() {
   const locacoes = (locSnap?.docs.map(d => ({ id: d.id, ...d.data() })) as EquipamentoLocacao[]) || [];
   const loadError = equipError || manutError || locError;
   const agora = useMemo(() => new Date(), []);
-
-  const latestMaintenanceById = useMemo(() => {
-    const latest: Record<string, EquipamentoManutencao | null> = {};
-    for (const record of manutencoes) {
-      const previous = latest[record.equipamentoId];
-      latest[record.equipamentoId] = getLatestMaintenance(previous ? [record, previous] : [record]);
-    }
-    return latest;
-  }, [manutencoes]);
 
   const financeById = useMemo(() => {
     const map: Record<string, Finance> = {};
@@ -270,7 +261,7 @@ export default function Equipamentos() {
           </div>
         </div>
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array(3).fill(0).map((_, i) => <div key={i} className="h-44 bg-white rounded-2xl border border-zinc-100 animate-pulse" />)}</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array(3).fill(0).map((_, i) => <div key={i} className="h-56 bg-white rounded-2xl border border-zinc-100 animate-pulse" />)}</div>
         ) : filteredEquipamentos.length === 0 ? (
           <div className="py-20 text-center bg-white rounded-3xl border-2 border-dashed border-zinc-100">
             <Boxes className="w-14 h-14 text-zinc-200 mx-auto mb-3" />
@@ -280,7 +271,6 @@ export default function Equipamentos() {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
             {filteredEquipamentos.map(eq => {
-              const f = financeById[eq.id];
               return (
                 <button key={eq.id} onClick={() => setSelected(eq)} className="group flex h-full flex-col rounded-3xl border border-zinc-200 bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2">
                   <div className="flex items-center justify-between gap-3">
@@ -315,16 +305,6 @@ export default function Equipamentos() {
                     </div>
                   </div>
 
-                  <MaintenanceCardSummary latest={latestMaintenanceById[eq.id]} loading={manutLoading} error={Boolean(manutError)} />
-
-                  <div className="mt-3 grid grid-cols-4 gap-2 border-t border-zinc-100 pt-3 text-left">
-                    <div className="min-w-0"><p className="text-[9px] font-bold uppercase text-zinc-400">Receita</p><p className="truncate text-[11px] font-black text-green-600">{brl(f?.receita || 0)}</p></div>
-                    <div className="min-w-0"><p className="text-[9px] font-bold uppercase text-zinc-400">Custo</p><p className="truncate text-[11px] font-black text-red-500">{brl(f?.custoTotal || 0)}</p></div>
-                    <div className="min-w-0"><p className="text-[9px] font-bold uppercase text-zinc-400">Resultado</p><p className={cn('truncate text-[11px] font-black', (f?.resultado || 0) >= 0 ? 'text-green-600' : 'text-red-600')}>{brl(f?.resultado || 0)}</p></div>
-                    <div className="min-w-0"><p className="text-[9px] font-bold uppercase text-zinc-400">Fator</p><p className="truncate text-[11px] font-black text-zinc-700">{fator(f?.fatorLocacao ?? null)}</p></div>
-                  </div>
-
-                  <span className="mt-3 inline-flex items-center justify-end gap-1 text-xs font-bold text-zinc-500 transition-colors group-hover:text-zinc-900">Ver ficha completa <ArrowRight className="h-3.5 w-3.5" /></span>
                 </button>
               );
             })}
