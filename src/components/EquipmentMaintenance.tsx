@@ -17,14 +17,15 @@ export function MaintenanceCardSummary({ latest, loading, error }: {
   latest?: EquipamentoManutencao | null; loading?: boolean; error?: boolean;
 }) {
   return (
-    <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2.5 text-left">
-      <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-blue-700"><Wrench className="h-3 w-3" /> Última manutenção</p>
+    <div className={cn('mt-3 rounded-xl px-3 py-2.5 text-left', error ? 'bg-red-50' : latest ? 'bg-emerald-50' : 'bg-zinc-50')}>
+      <div className="flex items-center justify-between gap-3">
+        <p className={cn('flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider', error ? 'text-red-700' : latest ? 'text-emerald-700' : 'text-zinc-500')}><Wrench className="h-3 w-3" /> Última manutenção</p>
+        {latest && !loading && !error && <span className="shrink-0 text-[10px] font-bold text-emerald-700">{dateLabel(latest)}</span>}
+      </div>
       {error ? <p className="mt-1 text-xs text-red-600">Histórico indisponível.</p>
         : loading ? <p className="mt-1 text-xs text-zinc-500">Carregando histórico...</p>
-          : latest ? <>
-            <p className="mt-1 text-xs font-bold text-zinc-800">{maintenanceLabel(latest)} · {dateLabel(latest)}</p>
-            <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-zinc-500">{maintenanceDescription(latest)}</p>
-          </> : <p className="mt-1 text-xs text-zinc-500">Nenhuma manutenção registrada.</p>}
+          : latest ? <p className="mt-1 truncate text-xs font-bold text-zinc-800">{maintenanceLabel(latest)}</p>
+            : <p className="mt-1 text-xs text-zinc-500">Nenhuma manutenção registrada.</p>}
     </div>
   );
 }

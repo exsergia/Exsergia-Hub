@@ -21,7 +21,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import {
   Boxes, Plus, X, ArrowLeft, Wrench, DollarSign, TrendingUp, TrendingDown,
   Camera, Images, Trash2, Edit2, Calendar, Building2, AlertCircle, CheckCircle2,
-  Trophy, Percent, Clock, ShieldCheck, Search, Fuel, Gauge,
+  Trophy, Percent, Clock, ShieldCheck, Search, Fuel, Gauge, ArrowRight,
 } from 'lucide-react';
 
 const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
@@ -282,34 +282,49 @@ export default function Equipamentos() {
             {filteredEquipamentos.map(eq => {
               const f = financeById[eq.id];
               return (
-                <button key={eq.id} onClick={() => setSelected(eq)} className="text-left bg-white p-5 rounded-3xl border border-zinc-200 shadow-sm hover:shadow-md transition-all group">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="w-12 h-12 rounded-2xl bg-zinc-50 overflow-hidden flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                      {eq.fotoUrl ? <img src={eq.fotoUrl} className="w-full h-full object-cover" alt={eq.nome} /> : <Boxes className="w-6 h-6 text-zinc-400" />}
-                    </div>
+                <button key={eq.id} onClick={() => setSelected(eq)} className="group flex h-full flex-col rounded-3xl border border-zinc-200 bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="rounded-lg bg-amber-100 px-2.5 py-1 font-mono text-xs font-black tracking-wide text-amber-800">{eq.tag?.trim() || eq.codigo || 'SEM TAG'}</span>
                     <span className={cn('px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider', statusBadge(eq.status))}>{eq.status}</span>
                   </div>
-                  <h4 className="text-xl font-black tracking-tight text-zinc-900 break-words">{eq.tag?.trim() || eq.nome}</h4>
-                  {eq.codigo && <p className="text-[10px] text-zinc-400 font-mono">{eq.codigo}</p>}
-                  <div className="mt-3 space-y-1 text-xs text-zinc-500">
-                    {eq.tag?.trim() && <p className="break-words"><strong className="text-zinc-700">Item de frota:</strong> {eq.nome}</p>}
-                    {eq.modelo && <p className="break-words"><strong className="text-zinc-700">Modelo:</strong> {eq.modelo}</p>}
-                    {eq.categoria && <p className="break-words"><strong className="text-zinc-700">Categoria:</strong> {eq.categoria}</p>}
-                    {eq.potencia != null && <p className="break-words"><strong className="text-zinc-700">Potência:</strong> {formatEquipmentMeasure(eq.potencia, eq.potenciaUnidade)}</p>}
-                  </div>
-                  {(eq.capacidadeTanque != null || eq.autonomia != null) && (
-                    <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-zinc-600">
-                      {eq.capacidadeTanque != null && <span className="inline-flex items-center gap-1 rounded-lg bg-zinc-50 px-2 py-1"><Fuel className="h-3.5 w-3.5" />{formatEquipmentMeasure(eq.capacidadeTanque, 'L')}</span>}
-                      {eq.autonomia != null && <span className="inline-flex items-center gap-1 rounded-lg bg-zinc-50 px-2 py-1"><Gauge className="h-3.5 w-3.5" />{formatEquipmentMeasure(eq.autonomia, eq.autonomiaUnidade)}</span>}
+
+                  <div className="mt-4 flex items-center gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-zinc-100 transition-transform group-hover:scale-105">
+                      {eq.fotoUrl ? <img src={eq.fotoUrl} className="h-full w-full object-cover" alt={eq.nome} /> : <Boxes className="h-6 w-6 text-zinc-400" />}
                     </div>
-                  )}
-                  <MaintenanceCardSummary latest={latestMaintenanceById[eq.id]} loading={manutLoading} error={Boolean(manutError)} />
-                  <div className="mt-4 grid grid-cols-2 xl:grid-cols-4 gap-2 text-left">
-                    <div className="min-w-0 rounded-xl bg-zinc-50/70 px-2.5 py-2"><p className="text-[9px] font-bold text-zinc-400 uppercase">Receita</p><p className="text-[11px] sm:text-xs font-black text-green-600 break-words leading-tight">{brl(f?.receita || 0)}</p></div>
-                    <div className="min-w-0 rounded-xl bg-zinc-50/70 px-2.5 py-2"><p className="text-[9px] font-bold text-zinc-400 uppercase">Custo</p><p className="text-[11px] sm:text-xs font-black text-red-500 break-words leading-tight">{brl(f?.custoTotal || 0)}</p></div>
-                    <div className="min-w-0 rounded-xl bg-zinc-50/70 px-2.5 py-2"><p className="text-[9px] font-bold text-zinc-400 uppercase">Result.</p><p className={cn('text-[11px] sm:text-xs font-black break-words leading-tight', (f?.resultado || 0) >= 0 ? 'text-green-600' : 'text-red-600')}>{brl(f?.resultado || 0)}</p></div>
-                    <div className="min-w-0 rounded-xl bg-zinc-50/70 px-2.5 py-2"><p className="text-[9px] font-bold text-zinc-400 uppercase">Fator</p><p className="text-[11px] sm:text-xs font-black text-zinc-700 break-words leading-tight">{fator(f?.fatorLocacao ?? null)}</p></div>
+                    <div className="min-w-0">
+                      <h4 className="truncate text-base font-black tracking-tight text-zinc-900">{eq.modelo || eq.nome}</h4>
+                      <p className="mt-0.5 line-clamp-2 text-xs text-zinc-500">
+                        {[eq.fabricanteGerador, eq.motor].filter(Boolean).join(' · ') || eq.nome}
+                      </p>
+                    </div>
                   </div>
+
+                  <div className="mt-4 grid grid-cols-3 gap-2">
+                    <div className="min-w-0 rounded-xl bg-zinc-50 px-2.5 py-2.5">
+                      <p className="text-[9px] font-bold uppercase tracking-wide text-zinc-400">Potência</p>
+                      <p className="mt-1 truncate text-xs font-black text-zinc-800">{formatEquipmentMeasure(eq.potencia, eq.potenciaUnidade)}</p>
+                    </div>
+                    <div className="min-w-0 rounded-xl bg-zinc-50 px-2.5 py-2.5">
+                      <p className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-zinc-400"><Gauge className="h-3 w-3" />Consumo</p>
+                      <p className="mt-1 truncate text-xs font-black text-zinc-800">{formatEquipmentMeasure(eq.autonomia, eq.autonomiaUnidade)}</p>
+                    </div>
+                    <div className="min-w-0 rounded-xl bg-zinc-50 px-2.5 py-2.5">
+                      <p className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-zinc-400"><Fuel className="h-3 w-3" />Tanque</p>
+                      <p className="mt-1 truncate text-xs font-black text-zinc-800">{formatEquipmentMeasure(eq.capacidadeTanque, 'L')}</p>
+                    </div>
+                  </div>
+
+                  <MaintenanceCardSummary latest={latestMaintenanceById[eq.id]} loading={manutLoading} error={Boolean(manutError)} />
+
+                  <div className="mt-3 grid grid-cols-4 gap-2 border-t border-zinc-100 pt-3 text-left">
+                    <div className="min-w-0"><p className="text-[9px] font-bold uppercase text-zinc-400">Receita</p><p className="truncate text-[11px] font-black text-green-600">{brl(f?.receita || 0)}</p></div>
+                    <div className="min-w-0"><p className="text-[9px] font-bold uppercase text-zinc-400">Custo</p><p className="truncate text-[11px] font-black text-red-500">{brl(f?.custoTotal || 0)}</p></div>
+                    <div className="min-w-0"><p className="text-[9px] font-bold uppercase text-zinc-400">Resultado</p><p className={cn('truncate text-[11px] font-black', (f?.resultado || 0) >= 0 ? 'text-green-600' : 'text-red-600')}>{brl(f?.resultado || 0)}</p></div>
+                    <div className="min-w-0"><p className="text-[9px] font-bold uppercase text-zinc-400">Fator</p><p className="truncate text-[11px] font-black text-zinc-700">{fator(f?.fatorLocacao ?? null)}</p></div>
+                  </div>
+
+                  <span className="mt-3 inline-flex items-center justify-end gap-1 text-xs font-bold text-zinc-500 transition-colors group-hover:text-zinc-900">Ver ficha completa <ArrowRight className="h-3.5 w-3.5" /></span>
                 </button>
               );
             })}
