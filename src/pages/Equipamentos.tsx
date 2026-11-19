@@ -21,7 +21,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import {
   Boxes, Plus, X, ArrowLeft, Wrench, DollarSign, TrendingUp, TrendingDown,
   Camera, Images, Trash2, Edit2, Calendar, Building2, AlertCircle, CheckCircle2,
-  Trophy, Percent, Clock, ShieldCheck, Search, Fuel, Gauge,
+  Trophy, Percent, Clock, ShieldCheck, Search,
 } from 'lucide-react';
 
 const brl = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
@@ -261,7 +261,9 @@ export default function Equipamentos() {
           </div>
         </div>
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array(3).fill(0).map((_, i) => <div key={i} className="h-56 bg-white rounded-2xl border border-zinc-100 animate-pulse" />)}</div>
+          <div className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
+            {Array(6).fill(0).map((_, i) => <div key={i} className="h-20 border-b border-zinc-100 last:border-b-0 animate-pulse"><div className="m-4 h-12 rounded-xl bg-zinc-100" /></div>)}
+          </div>
         ) : filteredEquipamentos.length === 0 ? (
           <div className="py-20 text-center bg-white rounded-3xl border-2 border-dashed border-zinc-100">
             <Boxes className="w-14 h-14 text-zinc-200 mx-auto mb-3" />
@@ -269,45 +271,34 @@ export default function Equipamentos() {
             <p className="text-xs text-zinc-400">{equipamentos.length ? 'Altere a pesquisa ou a categoria selecionada.' : 'Cadastre o primeiro item de frota com foto e ficha técnica.'}</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
-            {filteredEquipamentos.map(eq => {
-              return (
-                <button key={eq.id} onClick={() => setSelected(eq)} className="group flex h-full flex-col rounded-3xl border border-zinc-200 bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="rounded-lg bg-amber-100 px-2.5 py-1 font-mono text-xs font-black tracking-wide text-amber-800">{eq.tag?.trim() || eq.codigo || 'SEM TAG'}</span>
-                    <span className={cn('px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider', statusBadge(eq.status))}>{eq.status}</span>
+          <div className="overflow-hidden rounded-3xl border border-zinc-200 bg-white px-4 py-3 shadow-sm sm:px-5">
+            {filteredEquipamentos.map((eq, index) => (
+              <button key={eq.id} onClick={() => setSelected(eq)} className="group flex w-full items-start gap-3 border-b border-zinc-100 py-3 text-left transition-colors last:border-b-0 hover:bg-zinc-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-zinc-900 sm:items-center">
+                <span className="w-5 shrink-0 pt-2 text-center text-xs font-bold tabular-nums text-zinc-300 sm:pt-0">{index + 1}</span>
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-zinc-100">
+                  {eq.fotoUrl ? <img src={eq.fotoUrl} className="h-full w-full object-cover" alt={eq.nome} /> : <Boxes className="h-5 w-5 text-zinc-400" />}
+                </div>
+                <div className="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between sm:gap-5">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <h4 className="truncate text-sm font-black text-zinc-900">{eq.tag?.trim() || eq.codigo || 'Sem código'}</h4>
+                      <span className="text-xs font-bold text-zinc-700">{eq.modelo || eq.nome}</span>
+                    </div>
+                    <p className="mt-0.5 truncate text-[11px] text-zinc-500">{[eq.fabricanteGerador, eq.motor].filter(Boolean).join(' · ') || eq.nome}</p>
                   </div>
-
-                  <div className="mt-4 flex items-center gap-3">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-zinc-100 transition-transform group-hover:scale-105">
-                      {eq.fotoUrl ? <img src={eq.fotoUrl} className="h-full w-full object-cover" alt={eq.nome} /> : <Boxes className="h-6 w-6 text-zinc-400" />}
-                    </div>
-                    <div className="min-w-0">
-                      <h4 className="truncate text-base font-black tracking-tight text-zinc-900">{eq.modelo || eq.nome}</h4>
-                      <p className="mt-0.5 line-clamp-2 text-xs text-zinc-500">
-                        {[eq.fabricanteGerador, eq.motor].filter(Boolean).join(' · ') || eq.nome}
-                      </p>
-                    </div>
+                  <div className="mt-2 flex shrink-0 flex-wrap items-center gap-2 sm:mt-0 sm:flex-nowrap sm:justify-end">
+                    <p className="text-xs font-black text-green-600 sm:text-right">
+                      {formatEquipmentMeasure(eq.potencia, eq.potenciaUnidade)}
+                      <span className="mx-1.5 text-zinc-300">·</span>
+                      {formatEquipmentMeasure(eq.autonomia, eq.autonomiaUnidade)}
+                      <span className="mx-1.5 text-zinc-300">·</span>
+                      {formatEquipmentMeasure(eq.capacidadeTanque, 'L')}
+                    </p>
+                    <span className={cn('px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider', statusBadge(eq.status))}>{eq.status}</span>
                   </div>
-
-                  <div className="mt-4 grid grid-cols-3 gap-2">
-                    <div className="min-w-0 rounded-xl bg-zinc-50 px-2.5 py-2.5">
-                      <p className="text-[9px] font-bold uppercase tracking-wide text-zinc-400">Potência</p>
-                      <p className="mt-1 truncate text-xs font-black text-zinc-800">{formatEquipmentMeasure(eq.potencia, eq.potenciaUnidade)}</p>
-                    </div>
-                    <div className="min-w-0 rounded-xl bg-zinc-50 px-2.5 py-2.5">
-                      <p className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-zinc-400"><Gauge className="h-3 w-3" />Consumo</p>
-                      <p className="mt-1 truncate text-xs font-black text-zinc-800">{formatEquipmentMeasure(eq.autonomia, eq.autonomiaUnidade)}</p>
-                    </div>
-                    <div className="min-w-0 rounded-xl bg-zinc-50 px-2.5 py-2.5">
-                      <p className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-zinc-400"><Fuel className="h-3 w-3" />Tanque</p>
-                      <p className="mt-1 truncate text-xs font-black text-zinc-800">{formatEquipmentMeasure(eq.capacidadeTanque, 'L')}</p>
-                    </div>
-                  </div>
-
-                </button>
-              );
-            })}
+                </div>
+              </button>
+            ))}
           </div>
         )}
       </div>
