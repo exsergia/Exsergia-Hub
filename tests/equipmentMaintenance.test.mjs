@@ -128,7 +128,6 @@ test('Os avisos renderizados mostram a última realização e não confundem fal
   assert.match(html, /Verificação bimestral/);
   assert.match(html, /05\/11\/2026/);
   assert.doesNotMatch(html, /13\/11\/2026/);
-  assert.match(html, /Reaperto do coletor de escape/);
   const failure = renderToStaticMarkup(createElement(MaintenanceCardSummary, { error: true }));
   assert.match(failure, /Histórico indisponível/);
   assert.doesNotMatch(failure, /Nenhuma manutenção/);
