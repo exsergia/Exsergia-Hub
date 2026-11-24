@@ -252,3 +252,6 @@ Confirme se o `vercel.json` tem o rewrite:
 ```json
 { "source": "/api/(.*)", "destination": "/api/$1" }
 ```
+As rotas de listagem retornam `nextOffset`. Para obter a próxima página,
+repita a consulta com os mesmos filtros e envie esse valor em `offset`.
+Um valor `null` indica que a listagem terminou.

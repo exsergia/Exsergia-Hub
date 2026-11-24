@@ -520,8 +520,9 @@ export default function NotasFiscais() {
             const downloadName = `${sanitizeFileName(`${d.tipo}-${d.fornecedor || d.obraNome || d.id}-${dt ? format(dt, 'yyyy-MM-dd') : 'sem-data'}`)}.jpg`;
             const previewUrl = d.thumbnailPath || d.fotoPath ? fiscalThumbUrls[d.id] : d.fotoUrl;
             const hasImage = Boolean(d.fotoPath || d.fotoUrl);
-            const canEdit = isAdmin || Boolean(currentUserId && d.criadoPorId === currentUserId);
             const approvalStatus = getApprovalStatus(d);
+            const isPending = approvalStatus === 'pending';
+            const canEdit = isPending && (isAdmin || Boolean(currentUserId && d.criadoPorId === currentUserId));
             const approvalMeta = APPROVAL_STATUS_META[approvalStatus];
             return (
               <div key={d.id} className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden group">
@@ -592,18 +593,18 @@ export default function NotasFiscais() {
                         .join(' / ')}
                     </p>
                   )}
-                  {canReviewFiscal && (
+                  {canReviewFiscal && isPending && (
                     <div className="grid grid-cols-2 gap-2 pt-2">
                       <button
                         type="button"
-                        disabled={Boolean(reviewingDocId) || approvalStatus === 'approved'}
+                        disabled={Boolean(reviewingDocId)}
                         onClick={() => handleFiscalReview(d, 'approved')}
                         className="flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-45"
                       >
                         {reviewingDocId === d.id
                           ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           : <CheckCircle2 className="h-3.5 w-3.5" />}
-                        {approvalStatus === 'approved' ? 'Aprovada' : 'Aprovar'}
+                        Aprovar
                       </button>
                       <button
                         type="button"
@@ -631,7 +632,7 @@ export default function NotasFiscais() {
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                       )}
-                      {isAdmin && (
+                      {isAdmin && isPending && (
                         <button onClick={() => handleDelete(d)} className="p-1.5 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Excluir">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -647,6 +648,7 @@ export default function NotasFiscais() {
 
       {(showModal || editingDoc) && (
         <FiscalModal
+          key={`${currentUserId}:${editingDoc?.id || 'novo'}`}
           editingDoc={editingDoc}
           userName={userProfile ? `${userProfile.nome} ${userProfile.sobrenome || ''}`.trim() : (auth.currentUser?.email || 'Usuário')}
           userId={userProfile?.id || auth.currentUser?.id || ''}
@@ -755,7 +757,8 @@ function FiscalModal({
     obraId: '',
     operadoresPresentes: [],
   };
-  const [draft, setDraft, limparRascunhoFiscal] = useAutoSaveForm<FiscalDraft>('rascunho-novo-lancamento-fiscal', fiscalDraftInitial);
+  const draftKey = userId && !editingDoc ? `rascunho-novo-lancamento-fiscal:${userId}` : null;
+  const [draft, setDraft, limparRascunhoFiscal] = useAutoSaveForm<FiscalDraft>(draftKey, fiscalDraftInitial);
   const [tipo, setTipoState] = useState<'NF' | 'Cupom'>(editingDoc?.tipo || draft.tipo);
   const [valor, setValorState] = useState<number | ''>(editingDoc?.valor || draft.valor);
   const [data, setDataState] = useState(editDate ? format(editDate, 'yyyy-MM-dd') : draft.data);

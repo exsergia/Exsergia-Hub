@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 
-export function useAutoSaveForm<T>(key: string, initialValue: T) {
+export function useAutoSaveForm<T>(key: string | null, initialValue: T) {
   const [value, setValue] = useState<T>(() => {
-    if (typeof window === 'undefined') return initialValue;
+    if (!key || typeof window === 'undefined') return initialValue;
 
     try {
       const saved = window.localStorage.getItem(key);
@@ -13,6 +13,7 @@ export function useAutoSaveForm<T>(key: string, initialValue: T) {
   });
 
   useEffect(() => {
+    if (!key) return;
     try {
       window.localStorage.setItem(key, JSON.stringify(value));
     } catch {
@@ -22,7 +23,7 @@ export function useAutoSaveForm<T>(key: string, initialValue: T) {
 
   const clearSavedValue = useCallback(() => {
     try {
-      window.localStorage.removeItem(key);
+      if (key) window.localStorage.removeItem(key);
     } catch {
       // Evita quebrar o app caso o navegador bloqueie localStorage.
     }

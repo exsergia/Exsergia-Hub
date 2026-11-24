@@ -270,9 +270,11 @@ export async function updateDoc(ref: DocRef, value: any) {
   await setDoc(ref, next);
 }
 
-export async function deleteDoc(ref: DocRef) {
-  const { error } = await supabase.from(ref.table).delete().eq('id', ref.id);
+export async function deleteDoc(ref: DocRef, options?: { requireDeleted: boolean }) {
+  const deletion = supabase.from(ref.table).delete().eq('id', ref.id);
+  const { data, error } = await (options?.requireDeleted ? deletion.select('id').maybeSingle() : deletion);
   if (error) throw error;
+  if (options?.requireDeleted && !data) throw new Error('Equipamento indisponível para exclusão.');
   notifyLocalWrite(ref.table);
 }
 

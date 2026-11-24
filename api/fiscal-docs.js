@@ -5,6 +5,7 @@ import {
   handleOptions,
   isAppAdmin,
   normalizeText,
+  readMatchingPage,
   readJsonBody,
   requireMethod,
   requireUser,
@@ -69,25 +70,15 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     const limit = toPositiveInt(url.searchParams.get('limit'), 100, 500);
-    const { data, error } = await supabase
-      .from('fiscal_docs')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(500);
-
-    if (error) {
+    const offset = toPositiveInt(url.searchParams.get('offset'), 0, Number.MAX_SAFE_INTEGER);
+    try {
+      const query = Object.fromEntries(url.searchParams.entries());
+      const page = await readMatchingPage(supabase, 'fiscal_docs',
+        items => filterFiscalDocs(items, query, user, admin), limit, offset);
+      sendJson(res, 200, { ok: true, admin, count: page.items.length, ...page });
+    } catch (error) {
       sendJson(res, 500, { ok: false, error: error.message });
-      return;
     }
-
-    const items = filterFiscalDocs(
-      (data || []).map(unwrapRow),
-      Object.fromEntries(url.searchParams.entries()),
-      user,
-      admin,
-    ).slice(0, limit);
-
-    sendJson(res, 200, { ok: true, admin, count: items.length, items });
     return;
   }
 

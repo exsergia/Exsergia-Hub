@@ -156,6 +156,24 @@ export async function getOperatorProfile(supabase, user) {
   return unwrapRow(data);
 }
 
+export async function readMatchingPage(supabase, table, filter, limit, offset) {
+  const batchSize = 250;
+  const items = [];
+  let matched = 0;
+  for (let start = 0; ; start += batchSize) {
+    const { data, error } = await supabase.from(table).select('*')
+      .order('created_at', { ascending: false }).order('id', { ascending: false })
+      .range(start, start + batchSize - 1);
+    if (error) throw error;
+    for (const item of filter((data || []).map(unwrapRow))) {
+      if (matched++ < offset) continue;
+      if (items.length === limit) return { items, nextOffset: offset + limit };
+      items.push(item);
+    }
+    if (!data || data.length < batchSize) return { items, nextOffset: null };
+  }
+}
+
 export function unwrapRow(row) {
   return { id: row.id, ...(row.data || {}) };
 }

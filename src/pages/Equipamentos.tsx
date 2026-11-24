@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useCollection } from '../lib/supabaseHooks';
-import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy, writeBatch } from '../lib/supabaseDb';
+import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from '../lib/supabaseDb';
 import { db, handleFirestoreError, OperationType } from '../lib/supabase';
 import { Equipamento, EquipamentoManutencao, EquipamentoLocacao, EquipamentoStatus, ManutencaoTipo, CustoItem, ManutencaoPeriodicidade, ManutencaoResultado } from '../types';
 import { useAuth } from '../App';
@@ -154,11 +154,7 @@ export default function Equipamentos() {
     const identificacao = eq.tag?.trim() || eq.nome;
     if (!confirm(`Excluir definitivamente o gerador "${identificacao}"?\n\nAs manutenções, locações e todo o histórico financeiro também serão removidos. Esta ação não pode ser desfeita.`)) return false;
     try {
-      const batch = writeBatch(db);
-      manutencoes.filter(m => m.equipamentoId === eq.id).forEach(m => batch.delete(doc(db, 'equipamento_manutencoes', m.id)));
-      locacoes.filter(l => l.equipamentoId === eq.id).forEach(l => batch.delete(doc(db, 'equipamento_locacoes', l.id)));
-      batch.delete(doc(db, 'equipamentos', eq.id));
-      await batch.commit();
+      await deleteDoc(doc(db, 'equipamentos', eq.id), { requireDeleted: true });
       reload();
       notify('success', 'Gerador excluído', `${identificacao} e seu histórico foram removidos.`);
       return true;
