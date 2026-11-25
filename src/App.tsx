@@ -128,70 +128,15 @@ const normalizeLoginEmail = (email: string) =>
 const isBootstrapAdminEmail = (email?: string | null) =>
   !!email && BOOTSTRAP_ADMIN_EMAILS.includes(email.trim().toLowerCase());
 
-const isMissingResolveLoginRpc = (error: unknown) => {
-  const err = error as { code?: string; message?: string };
-  return err?.code === 'PGRST202' ||
-    /resolve_login_identifier|schema cache|could not find the function/i.test(err?.message || '');
-};
-
-async function resolveLoginEmailFallback(input: string) {
-  const digits = input.replace(/\D/g, '');
-  if (!digits) return '';
-
-  const matchesIdentifier = (storedValue: string) => {
-    const stored = storedValue.replace(/\D/g, '');
-    if (!stored) return false;
-    if (stored === digits) return true;
-    if (digits.startsWith('55') && digits.slice(2) === stored) return true;
-    if (stored.startsWith('55') && stored.slice(2) === digits) return true;
-    return stored.length >= 10 && digits.length >= 10 && stored.slice(-11) === digits.slice(-11);
-  };
-
-  const { data: cpfRow } = await withSupabaseRetry(
-    () => supabase
-      .from('cpfs')
-      .select('data')
-      .eq('id', digits)
-      .maybeSingle()
-  );
-
-  const cpfEmail = (cpfRow?.data as any)?.email;
-  if (cpfEmail) return normalizeLoginEmail(String(cpfEmail));
-
-  const { data: operadores } = await withSupabaseRetry(
-    () => supabase
-      .from('operadores')
-      .select('email, cpf, telefone, data')
-      .limit(1000)
-  );
-
-  const match = (operadores || []).find((row: any) => {
-    const data = row.data || {};
-    const cpf = String(row.cpf || data.cpf || '');
-    const telefone = String(row.telefone || data.telefone || '');
-    return matchesIdentifier(cpf) || matchesIdentifier(telefone);
-  }) as any;
-
-  return normalizeLoginEmail(String(match?.email || match?.data?.email || ''));
-}
-
-async function resolveLoginEmail(input: string) {
-  const value = input.trim().toLowerCase();
-  if (!value) return '';
-  if (value.includes('@')) return normalizeLoginEmail(value);
-
-  const { data, error } = await withSupabaseRetry(
-    () => supabase.rpc('resolve_login_identifier', {
-      p_identifier: value.replace(/\D/g, ''),
-    })
-  );
-
-  if (error) {
-    if (isMissingResolveLoginRpc(error)) return resolveLoginEmailFallback(value);
-    throw error;
-  }
-  const rpcEmail = typeof data === 'string' ? normalizeLoginEmail(data) : '';
-  return rpcEmail || resolveLoginEmailFallback(value);
+async function requestIdentifierAuth(input: string, action: 'login' | 'recover', password?: string) {
+  const response = await fetch('/api/auth-identifier', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ identifier: input.replace(/\D/g, ''), action, password }),
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || 'Serviço de acesso indisponível.');
+  return result;
 }
 
 interface Notification {
@@ -330,15 +275,11 @@ function App() {
       const adminEmailPromise = emailLower
         ? optionalGetDoc('Consulta de admin por e-mail', getDoc(doc(db, 'admin_access', `email:${emailLower}`)))
         : Promise.resolve(null);
-      const adminCpfPromise = cpfLimpo
-        ? optionalGetDoc('Consulta de admin por CPF', getDoc(doc(db, 'admin_access', `cpf:${cpfLimpo}`)))
-        : Promise.resolve(null);
       const encPromise = optionalGetDoc('Consulta de encarregado', getDoc(encRef));
 
       const opSnap = await withTimeout(getDoc(opRef), 8000, 'Consulta do perfil principal');
-      const [adminEmailSnap, adminCpfSnap, encSnap] = await Promise.all([
+      const [adminEmailSnap, encSnap] = await Promise.all([
         adminEmailPromise,
-        adminCpfPromise,
         encPromise,
       ]);
 
@@ -346,12 +287,8 @@ function App() {
         ? adminEmailSnap.data()?.ativo !== false
         : false;
 
-      const cpfAdminAtivo = adminCpfSnap?.exists()
-        ? adminCpfSnap.data()?.ativo !== false
-        : false;
-
-      const isAdminByRegistry = emailAdminAtivo || cpfAdminAtivo || isBootstrapAdminEmail(emailLower);
-      const isEncarregadoByRegistry = !isAdminByRegistry && encSnap.exists() && encSnap.data()?.ativo !== false;
+      const isAdminByRegistry = emailAdminAtivo || isBootstrapAdminEmail(emailLower);
+      const isEncarregadoByRegistry = !isAdminByRegistry && encSnap?.exists() && encSnap.data()?.ativo !== false;
 
       if (isEncarregadoByRegistry) {
         const encData = encSnap.data();
@@ -786,19 +723,14 @@ function LoginView() {
 
     setLoadingRecuperar(true);
     try {
-      const emailTarget = await resolveLoginEmail(input);
-
-      if (!emailTarget) {
-        alert('Nenhuma conta encontrada com esse dado. Verifique e tente novamente.');
-        return;
-      }
-
-      const { error } = await withSupabaseRetry(
-        () => supabase.auth.resetPasswordForEmail(emailTarget, {
+      if (input.includes('@')) {
+        const { error } = await supabase.auth.resetPasswordForEmail(normalizeLoginEmail(input), {
           redirectTo: window.location.origin + window.location.pathname,
-        })
-      );
-      if (error) throw error;
+        });
+        if (error) throw error;
+      } else {
+        await requestIdentifierAuth(input, 'recover');
+      }
       setRecuperarEnviado(true);
     } catch (err: any) {
       if (isNetworkFetchError(err)) {
@@ -868,13 +800,6 @@ function LoginView() {
 
     setLoadingAuth(true);
     try {
-      const cpfRef = doc(db, 'cpfs', cpfLimpo);
-      const emailJaCadastrado = await resolveLoginEmail(cpfLimpo);
-
-      if (emailJaCadastrado) {
-        alert('Este CPF já está cadastrado. Faça login ou use outro CPF.');
-        return;
-      }
 
       // Cadastro também já loga: começa no Dashboard.
       localStorage.removeItem(LAST_ROUTE_KEY);
@@ -898,10 +823,6 @@ function LoginView() {
       };
 
       await setDoc(doc(db, 'operadores', cred.user.id), perfil);
-      await setDoc(cpfRef, {
-        uid: cred.user.id,
-        email: emailLimpo,
-      });
     } catch (error: any) {
       const code = error?.code || '';
       if (code === 'auth/email-already-in-use') {
@@ -931,19 +852,14 @@ function LoginView() {
 
     setLoadingAuth(true);
     try {
-      let emailLogin = login.trim().toLowerCase();
-
-      if (!emailLogin.includes('@')) {
-        emailLogin = await resolveLoginEmail(emailLogin);
-        if (!emailLogin) {
-          alert('CPF, celular ou e-mail não encontrado. Verifique os dados ou faça o cadastro.');
-          return;
-        }
-      }
-
-      // Login novo sempre começa no Dashboard (não restaura a rota do uso anterior).
       localStorage.removeItem(LAST_ROUTE_KEY);
-      await signInWithEmailAndPassword(auth, emailLogin, senha);
+      if (login.includes('@')) {
+        await signInWithEmailAndPassword(auth, normalizeLoginEmail(login), senha);
+      } else {
+        const tokens = await requestIdentifierAuth(login, 'login', senha);
+        const { error } = await supabase.auth.setSession(tokens);
+        if (error) throw error;
+      }
     } catch (error: any) {
       const code = error?.code || '';
       if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {

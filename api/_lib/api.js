@@ -65,7 +65,7 @@ export function getAllowedOrigin(req) {
   return 'https://exsergia-hub-sage.vercel.app';
 }
 
-export function enforceRateLimit(req, res, userKey = '') {
+export function enforceRateLimit(req, res, userKey = '', maxRequests = RATE_LIMIT_MAX_REQUESTS) {
   const ip = String(
     req.headers['x-forwarded-for'] ||
     req.headers['x-real-ip'] ||
@@ -82,7 +82,7 @@ export function enforceRateLimit(req, res, userKey = '') {
   }
 
   current.count += 1;
-  if (current.count > RATE_LIMIT_MAX_REQUESTS) {
+  if (current.count > maxRequests) {
     res.setHeader('Retry-After', String(Math.ceil((current.resetAt - now) / 1000)));
     sendJson(res, 429, { ok: false, error: 'Muitas requisicoes em pouco tempo. Tente novamente em instantes.' });
     return false;

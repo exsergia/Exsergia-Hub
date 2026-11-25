@@ -534,15 +534,19 @@ Deno.serve(async (req) => {
     });
     const email = emailAlreadySent
       ? { sent: true, error: '' }
-      : await sendEmail(NOTIFICATION_EMAILS, subject, html);
+      : SMTP_ENABLED
+        ? await sendEmail(NOTIFICATION_EMAILS, subject, html)
+        : { sent: false, error: '' };
     const allPushRecipientsReached = push.recipients.length > 0
       && push.recipients.every((recipient) => recipient.sent > 0 && recipient.failed === 0);
-    const complete = email.sent && allPushRecipientsReached;
-    const retryable = !email.sent || push.failed > 0;
+    const complete = (!SMTP_ENABLED || email.sent) && (!PUSH_ENABLED || allPushRecipientsReached)
+      && (email.sent || push.sent > 0);
+    const retryable = (SMTP_ENABLED && !email.sent) || push.failed > 0 || (!SMTP_ENABLED && !PUSH_ENABLED);
     const result: JsonRecord = {
       eventType,
       documentId,
       emailSent: email.sent,
+      emailConfigured: SMTP_ENABLED,
       emailRecipients: NOTIFICATION_EMAILS,
       pushSent: push.sent,
       pushSubscriptions: push.subscriptions,
@@ -550,7 +554,9 @@ Deno.serve(async (req) => {
       pushReason: push.reason,
       sentSubscriptionFingerprints: push.sentFingerprints,
     };
-    const lastError = [email.error, push.failed ? 'Falha temporaria no push.' : '', !allPushRecipientsReached ? push.reason || 'Destinatario sem aparelho cadastrado.' : '']
+    const lastError = [email.error, push.failed ? 'Falha temporaria no push.' : '',
+      PUSH_ENABLED && !allPushRecipientsReached ? push.reason || 'Destinatario sem aparelho cadastrado.' : '',
+      !SMTP_ENABLED && !PUSH_ENABLED ? 'Nenhum canal de notificacao configurado.' : '']
       .filter(Boolean)
       .join(' ');
     await finishJob(supabase, jobId, complete ? 'sent' : retryable ? 'failed' : 'partial', result, lastError);
