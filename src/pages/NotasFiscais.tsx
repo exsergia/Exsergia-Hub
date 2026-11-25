@@ -741,7 +741,7 @@ function FiscalModal({
 }) {
   const { isAdmin } = useAuth();
   const [obrasSnap, , obrasError] = useCollection(query(collection(db, 'obras'), orderBy('nome', 'asc')));
-  const [operadoresSnap, , operadoresError] = useCollection(query(collection(db, 'operadores'), orderBy('nome', 'asc')));
+  const [operadoresSnap, , operadoresError] = useCollection(query(collection(db, 'operadores_diretorio'), orderBy('nome', 'asc')));
   const obras = (obrasSnap?.docs.map(d => ({ id: d.id, ...d.data() })) as Obra[]) || [];
   const obrasDisponiveis = obras.filter(o => o.status !== 'Concluída');
   const operadores = (operadoresSnap?.docs.map(d => ({ id: d.id, ...d.data() })) as Operator[]) || [];

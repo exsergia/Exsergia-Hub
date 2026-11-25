@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CollectionRef, getDocs, LOCAL_WRITE_EVENT } from './supabaseDb';
+import { auth } from './supabase';
 
 const collectionCache = new Map<string, { snap: any }>();
 
@@ -27,7 +28,8 @@ export function useCollection(
   ref: CollectionRef | null | undefined,
   paused = false
 ): [any | undefined, boolean, Error | undefined, () => Promise<void>] {
-  const refKey = useMemo(() => JSON.stringify(ref || null), [ref]);
+  const accountId = auth.currentUser?.id ?? null;
+  const refKey = useMemo(() => JSON.stringify({ ...ref, accountId }), [ref, accountId]);
   const cached = collectionCache.get(refKey);
   const [snap, setSnap] = useState<any>(cached?.snap);
   const [loading, setLoading] = useState(!!ref && !cached);
@@ -62,6 +64,7 @@ export function useCollection(
     try {
       setError(undefined);
       const result = await getDocs(ref);
+      if ((auth.currentUser?.id ?? null) !== accountId) return;
       collectionCache.set(refKey, { snap: result });
       setSnap(result);
       hasLoadedRef.current = true;

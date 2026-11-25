@@ -34,7 +34,7 @@ export default function ChecklistPage() {
   const [selectedObraId, setSelectedObraId, limparRascunhoObraChecklist] = useAutoSaveForm('rascunho-checklist-obra', '');
   
   const [obrasSnap, , obrasError] = useCollection(collection(db, 'obras'));
-  const [operadoresSnap, , operadoresError] = useCollection(collection(db, 'operadores'));
+  const [operadoresSnap, , operadoresError] = useCollection(collection(db, 'operadores_diretorio'));
   const [adminAccessSnap, , adminAccessError] = useCollection(collection(db, 'admin_access'));
   const [encarregadosSnap, , encarregadosError] = useCollection(collection(db, 'encarregados'));
   const [materiaisSnap, , materiaisError] = useCollection(

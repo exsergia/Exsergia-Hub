@@ -20,6 +20,9 @@ export const db = {};
 function notifyLocalWrite(table: string) {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent(LOCAL_WRITE_EVENT, { detail: { table } }));
+  if (table === 'operadores') {
+    window.dispatchEvent(new CustomEvent(LOCAL_WRITE_EVENT, { detail: { table: 'operadores_diretorio' } }));
+  }
 }
 
 function notifyBatchWrite(ops: Array<{ table: string }>) {
@@ -167,6 +170,11 @@ function buildServerQuery(ref: CollectionRef) {
 }
 
 export async function getDocs(ref: CollectionRef) {
+  if (ref.table === 'operadores_diretorio') {
+    const { data, error } = await withSupabaseRetry(() => supabase.rpc('list_operator_directory'));
+    if (error) throw error;
+    return docsSnap(applyConstraints((data || []).map(unwrap), ref.constraints));
+  }
   // Tenta a consulta otimizada (menos payload trafegado).
   let { data, error } = await withSupabaseRetry(() => buildServerQuery(ref));
 

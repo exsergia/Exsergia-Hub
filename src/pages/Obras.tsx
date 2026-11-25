@@ -691,7 +691,7 @@ function ObraDetails({
   const { isAdmin, notify } = useAuth();
   const navigate = useNavigate();
   const [atividadesSnap, , atividadesError] = useCollection(query(collection(db, 'atividades'), where('obraId', '==', obra.id)));
-  const [operadoresSnap, , operadoresError] = useCollection(collection(db, 'operadores'));
+  const [operadoresSnap, , operadoresError] = useCollection(collection(db, 'operadores_diretorio'));
   const [activeTab, setActiveTab] = usePersistedTab<'progresso' | 'equipe' | 'informacoes'>('tab-obra-detalhes', 'progresso');
 
   const atividades = (atividadesSnap?.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Atividade[]) || [];

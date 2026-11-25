@@ -1755,7 +1755,8 @@ function CheckInModal({ log, tool, onClose }: { log: ToolLog, tool: Tool, onClos
         'Concluída'
       ]);
 
-      await updateDoc(doc(db, 'toolLogs', log.id), {
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'toolLogs', log.id), {
         activityId,
         movementHash,
         dataDevolucao: devolucaoEm,
@@ -1763,11 +1764,12 @@ function CheckInModal({ log, tool, onClose }: { log: ToolLog, tool: Tool, onClos
         statusLog: 'Concluída'
       });
 
-      await updateDoc(doc(db, 'tools', tool.id), {
+      batch.update(doc(db, 'tools', tool.id), {
         status: 'Disponível',
         lastLogId: null,
         updatedAt: devolucaoEm
       });
+      await batch.commit();
 
       notify('success', 'Devolução Concluída', 'Material entregue e já está disponível para retirada.');
       clearPhoto();

@@ -134,7 +134,7 @@ export default function Relatorios() {
   const [obrasSnap, , obrasError] = useCollection(collection(db, 'obras'));
   const [materiaisSnap, , materiaisError] = useCollection(collection(db, 'materiais'));
   const [atividadesSnap, , atividadesError] = useCollection(collection(db, 'atividades'));
-  const [operadoresSnap, , operadoresError] = useCollection(collection(db, 'operadores'));
+  const [operadoresSnap, , operadoresError] = useCollection(collection(db, 'operadores_diretorio'));
   const [toolsSnap, , toolsError] = useCollection(collection(db, 'tools'));
   const [toolLogsSnap, loadingLogs, toolLogsError] = useCollection(
     query(collection(db, 'toolLogs'), orderBy('dataSaida', 'desc'))

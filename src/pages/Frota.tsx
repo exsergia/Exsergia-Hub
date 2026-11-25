@@ -1167,7 +1167,8 @@ function CheckInModal({ log, vehicle, onClose }: { log: VehicleLog, vehicle: Veh
       const movementHash = createMovementScopeHash([activityId, log.id, log.vehicleId, log.dataSaida, devolucaoEm, 'Concluída']);
       const obsFinal = semAvarias ? 'Sem avarias' : observacao.trim();
 
-      await updateDoc(doc(db, 'vehicleLogs', log.id), {
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'vehicleLogs', log.id), {
         activityId,
         movementHash,
         dataDevolucao: devolucaoEm,
@@ -1178,11 +1179,12 @@ function CheckInModal({ log, vehicle, onClose }: { log: VehicleLog, vehicle: Veh
         statusLog: 'Concluída',
       });
 
-      await updateDoc(doc(db, 'vehicles', vehicle.id), {
+      batch.update(doc(db, 'vehicles', vehicle.id), {
         status: 'Disponível',
         lastLogId: null,
         updatedAt: devolucaoEm,
       });
+      await batch.commit();
 
       notify('success', 'Devolução Concluída', `O veículo "${vehicle.placa}" está disponível novamente.${localDevolucao ? '' : ' (sem localização — GPS indisponível)'}`);
       onClose();
