@@ -313,6 +313,9 @@ function App() {
           email: emailLower,
           funcao: isAdminByRegistry ? 'Administrador' : 'Operador de Campo',
           role: isAdminByRegistry ? 'admin' : 'operator',
+          ...(typeof meta.lgpdAceiteVersao === 'string' && typeof meta.lgpdAceiteData === 'string'
+            ? { lgpdAceite: { versao: meta.lgpdAceiteVersao, data: meta.lgpdAceiteData } }
+            : {}),
         };
         withTimeout(setDoc(opRef, newProfile), 5000, 'Criacao do perfil')
           .catch(error => console.warn('Nao foi possivel gravar o perfil agora. Usando perfil local temporario.', error));
@@ -803,12 +806,19 @@ function LoginView() {
 
       // Cadastro também já loga: começa no Dashboard.
       localStorage.removeItem(LAST_ROUTE_KEY);
+      const lgpdAceite = { versao: TERMO_LGPD_VERSAO, data: new Date().toISOString() };
       const cred = await createUserWithEmailAndPassword(auth, emailLimpo, senha, {
         nome: nome.trim(),
         sobrenome: sobrenome.trim(),
         telefone: somenteNumeros(telefone),
         cpf: cpfLimpo,
+        lgpdAceiteVersao: lgpdAceite.versao,
+        lgpdAceiteData: lgpdAceite.data,
       });
+      if (!cred.session) {
+        alert('Confira seu e-mail para confirmar o cadastro. Depois, faça login.');
+        return;
+      }
 
       const perfil: Operator = {
         id: cred.user.id,
@@ -819,7 +829,7 @@ function LoginView() {
         email: emailLimpo,
         funcao: 'Operador de Campo',
         role: 'operator',
-        lgpdAceite: { versao: TERMO_LGPD_VERSAO, data: new Date().toISOString() },
+        lgpdAceite,
       };
 
       await setDoc(doc(db, 'operadores', cred.user.id), perfil);

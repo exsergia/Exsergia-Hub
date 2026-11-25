@@ -120,12 +120,12 @@ export async function createUserWithEmailAndPassword(_auth: unknown, email: stri
       const { data: loginData, error: loginError } = await withSupabaseRetry(
         () => supabase.auth.signInWithPassword({ email, password })
       );
-      if (!loginError && loginData.user) return { user: loginData.user };
+      if (!loginError && loginData.user) return { user: loginData.user, session: loginData.session };
     }
     throw error;
   }
   if (!data.user) throw new Error('Usuário não foi criado no Supabase Auth.');
-  return { user: data.user };
+  return { user: data.user, session: data.session };
 }
 
 export enum OperationType {
